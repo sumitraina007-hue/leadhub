@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Dark Store & Battery Swap Network Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin:0; padding:0; height:100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #app { display:flex; height:100vh; width:100vw; }
+  #sidebar {
+    width: 310px; min-width: 310px; background: #12181f; color: #e8edf3;
+    display:flex; flex-direction:column; padding: 16px; box-sizing:border-box;
+    overflow-y:auto; border-right: 1px solid #232b36;
+  }
+  #sidebar h1 { font-family:'Space Grotesk',sans-serif; font-size: 16px; margin: 0 0 2px 0; color:#fff; letter-spacing:0.2px;}
+  #sidebar .sub { font-size: 12px; color:#8b98a9; margin-bottom:16px; }
+  .stat-row { display:flex; gap:8px; margin-bottom:14px; }
+  .stat-box { flex:1; background:#1b232d; border-radius:8px; padding:10px 12px; }
+  .stat-box .num { font-size:20px; font-weight:700; color:#C6FF4D; }
+  .stat-box .lbl { font-size:11px; color:#8b98a9; margin-top:2px; }
+  label { font-size:12px; color:#8b98a9; display:block; margin: 10px 0 4px; text-transform:uppercase; letter-spacing:0.5px;}
+  select, input {
+    width:100%; box-sizing:border-box; background:#1b232d; color:#e8edf3;
+    border:1px solid #2a3341; border-radius:6px; padding:8px 10px; font-size:13px;
+  }
+  select:focus, input:focus { outline:none; border-color:#C6FF4D; }
+
+  #networkPanel { margin-top:6px; border-top:1px solid #232b36; padding-top:12px;}
+  .network-row {
+    display:flex; align-items:center; gap:10px; padding:8px 8px; border-radius:8px;
+    margin-bottom:6px; background:#1b232d;
+  }
+  .network-row.disabled { opacity: 0.55; }
+  .swatch { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+  .network-info { flex:1; }
+  .network-name { font-size:13px; font-weight:600; color:#e8edf3; }
+  .network-count { font-size:11px; color:#8b98a9; }
+  .toggle {
+    position:relative; width:34px; height:19px; border-radius:10px; background:#2a3341;
+    cursor:pointer; flex-shrink:0; transition: background 0.15s;
+  }
+  .toggle.on { background:#3a8fe0; }
+  .toggle-knob {
+    position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%;
+    background:#fff; transition: left 0.15s;
+  }
+  .toggle.on .toggle-knob { left:17px; }
+
+  #cityList { margin-top:10px; flex:1; overflow-y:auto; }
+  .city-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12.5px;
+  }
+  .city-row:hover { background:#1b232d; }
+  .city-row.active { background:#22364a; color:#7fc4ff; }
+  .city-row .count { color:#8b98a9; font-size:11.5px; }
+  .legend-note {
+    margin-top:14px; padding:10px 12px; background:#1b232d; border-radius:8px;
+    font-size:11.5px; color:#93a0b0; line-height:1.5; border-left:3px solid #C6FF4D;
+  }
+  .empty-note {
+    font-size:11px; color:#6b7686; padding: 2px 8px 8px 32px; margin-top:-4px;
+  }
+  #map { flex:1; height:100%; }
+  .leaflet-popup-content-wrapper { border-radius:8px; }
+  .popup-title { font-weight:700; font-size:13px; margin-bottom:2px; color:#12181f; }
+  .popup-network { display:inline-block; font-size:10px; font-weight:700; color:#0A0E12;
+    padding:2px 7px; border-radius:10px; margin-bottom:6px; }
+  .popup-city { font-size:11px; color:#5b7a9a; margin: 2px 0 6px; }
+  .popup-status { display:inline-block; font-size:10px; font-weight:600; color:#6b7686; margin-bottom:6px; }
+  .popup-addr { font-size:12px; color:#3a4552; line-height:1.4; }
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-thumb { background:#2a3341; border-radius:3px; }
+
+  /* ===================== FRANCHISE SHOWCASE ===================== */
+  :root {
+    --ink: #0A0E12;
+    --panel: #12181f;
+    --panel-soft: #1b232d;
+    --line: #232b36;
+    --volt: #C6FF4D;
+    --amber: #FFB020;
+    --cyan: #43E5C5;
+    --text: #E8EDF3;
+    --muted: #8b98a9;
+    --display: 'Space Grotesk', sans-serif;
+    --body: 'Inter', -apple-system, sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+
+  body { background: var(--ink); }
+  .showcase-section { font-family: var(--body); }
+  .eyebrow {
+    font-family: var(--mono); font-size:11.5px; letter-spacing:2.5px; text-transform:uppercase;
+    color: var(--volt); margin-bottom:14px; display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before { content:''; width:22px; height:1px; background: var(--volt); display:inline-block; }
+
+  /* ---- HERO ---- */
+  .hero {
+    position:relative; min-height:100vh; background: var(--ink); color: var(--text);
+    display:flex; align-items:center; overflow:hidden; padding: 60px 8vw;
+    box-sizing:border-box; border-bottom:1px solid var(--line);
+  }
+  .hero-grid-bg {
+    position:absolute; inset:0; z-index:0; opacity:0.55;
+  }
+  .hero-inner { position:relative; z-index:1; max-width:920px; }
+  .hero h1 {
+    font-family: var(--display); font-weight:600; font-size: clamp(34px, 5.2vw, 68px);
+    line-height:1.05; margin: 0 0 22px; letter-spacing:-0.01em;
+  }
+  .hero h1 .accent { color: var(--volt); }
+  .hero-sub {
+    font-size: 16.5px; line-height:1.65; color: var(--muted); max-width:600px; margin: 0 0 36px;
+  }
+  .hero-stats { display:flex; gap:44px; margin-bottom:40px; flex-wrap:wrap; }
+  .hero-stat .num {
+    font-family: var(--mono); font-size: clamp(28px,3vw,40px); font-weight:600; color: var(--volt);
+    display:block; line-height:1;
+  }
+  .hero-stat .lbl { font-size:12.5px; color: var(--muted); margin-top:8px; letter-spacing:0.3px; }
+  .cta-btn {
+    font-family: var(--body); font-weight:600; font-size:14.5px; color: var(--ink);
+    background: var(--volt); border:none; border-radius:999px; padding:15px 30px;
+    cursor:pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; letter-spacing:0.2px;
+  }
+  .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(198,255,77,0.25); }
+  .cta-btn.ghost {
+    background:transparent; color:var(--text); border:1px solid var(--line); margin-left:14px;
+  }
+  .cta-btn.ghost:hover { border-color: var(--volt); box-shadow:none; }
+
+  /* ---- NETWORK OVERVIEW ---- */
+  .section-wrap { padding: 100px 8vw; box-sizing:border-box; background: var(--ink); }
+  .section-wrap.alt { background: #0D1218; }
+  .section-head { max-width:680px; margin-bottom:56px; }
+  .section-head h2 {
+    font-family: var(--display); font-weight:600; font-size: clamp(24px, 2.6vw, 36px);
+    color: var(--text); line-height:1.25; margin:0;
+  }
+  .network-cards { display:grid; grid-template-columns: repeat(3, 1fr); gap:22px; }
+  @media (max-width: 900px) { .network-cards { grid-template-columns: 1fr; } }
+  .net-card {
+    background: var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:28px 26px; border-top: 3px solid var(--card-color, var(--volt));
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+  .net-card:hover { transform: translateY(-4px); }
+  .net-card .card-label {
+    font-family: var(--mono); font-size:11px; letter-spacing:1.5px; text-transform:uppercase;
+    color: var(--card-color, var(--volt)); margin-bottom:18px;
+  }
+  .net-card .card-num {
+    font-family: var(--display); font-size:42px; font-weight:600; color: var(--text); line-height:1;
+    margin-bottom:6px;
+  }
+  .net-card .card-sub { font-size:13px; color: var(--muted); margin-bottom:18px; }
+  .net-card .card-desc { font-size:13.5px; color:#9aa5b3; line-height:1.6; }
+
+  /* ---- TOP CITIES ---- */
+  .bars { display:flex; flex-direction:column; gap:16px; max-width:820px; }
+  .bar-row { display:grid; grid-template-columns: 150px 1fr 70px; align-items:center; gap:16px; }
+  .bar-row .bar-city { font-family: var(--body); font-size:14px; color: var(--text); font-weight:500; }
+  .bar-track { height:10px; background: var(--panel-soft); border-radius:6px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:6px; background: linear-gradient(90deg, var(--volt), var(--cyan)); width:0%; transition: width 1.2s cubic-bezier(.2,.8,.2,1); }
+  .bar-row .bar-count { font-family: var(--mono); font-size:13px; color: var(--muted); text-align:right; }
+
+  /* ---- MAP SECTION ---- */
+  .map-section { padding: 100px 8vw 0; box-sizing:border-box; background:#0D1218; }
+  .map-frame {
+    border:1px solid var(--line); border-radius:16px; overflow:hidden; height:82vh; min-height:560px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.45);
+  }
+  .map-frame #app { height:100%; width:100%; }
+
+  /* ---- CTA BANNER ---- */
+  .cta-banner {
+    padding: 110px 8vw; text-align:center; background: var(--ink);
+    border-top:1px solid var(--line); position:relative;
+  }
+  .cta-banner h2 {
+    font-family: var(--display); font-weight:600; color: var(--text);
+    font-size: clamp(26px, 3.4vw, 44px); max-width:720px; margin: 0 auto 18px; line-height:1.2;
+  }
+  .cta-banner p { color: var(--muted); font-size:15.5px; margin: 0 0 36px; }
+
+  /* ---- FOOTER ---- */
+  .site-footer {
+    padding: 32px 8vw; text-align:center; font-family: var(--mono); font-size:11.5px;
+    color: #5b6472; background: var(--ink); border-top:1px solid var(--line);
+  }
+
+  @keyframes pulseDot {
+    0% { transform: scale(0.6); opacity:0.9; }
+    70% { transform: scale(2.4); opacity:0; }
+    100% { transform: scale(2.4); opacity:0; }
+  }
+  .grid-node { fill: var(--volt); }
+  .grid-pulse-ring { fill:none; stroke: var(--volt); stroke-width:1.5; transform-origin:center; animation: pulseDot 2.6s ease-out infinite; }
+  .grid-line { stroke: #2a3341; stroke-width:1; }
+  .grid-line-active { stroke: var(--volt); stroke-width:1; stroke-dasharray:4 6; animation: dashMove 6s linear infinite; opacity:0.7; }
+  @keyframes dashMove { to { stroke-dashoffset: -100; } }
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <svg class="hero-grid-bg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+    <g class="grid-line">
+      <line x1="120" y1="620" x2="340" y2="480" />
+      <line x1="340" y1="480" x2="560" y2="540" />
+      <line x1="560" y1="540" x2="760" y2="380" />
+      <line x1="760" y1="380" x2="980" y2="440" />
+      <line x1="340" y1="480" x2="420" y2="280" />
+      <line x1="420" y1="280" x2="680" y2="200" />
+      <line x1="680" y1="200" x2="760" y2="380" />
+      <line x1="980" y1="440" x2="1100" y2="260" />
+      <line x1="560" y1="540" x2="640" y2="700" />
+      <line x1="640" y1="700" x2="900" y2="660" />
+    </g>
+    <g class="grid-line-active">
+      <line x1="340" y1="480" x2="560" y2="540" />
+      <line x1="420" y1="280" x2="680" y2="200" />
+      <line x1="760" y1="380" x2="980" y2="440" />
+    </g>
+    <g>
+      <circle class="grid-node" cx="120" cy="620" r="4" />
+      <circle class="grid-node" cx="340" cy="480" r="5" />
+      <circle class="grid-node" cx="560" cy="540" r="4" />
+      <circle class="grid-node" cx="760" cy="380" r="6" />
+      <circle class="grid-node" cx="980" cy="440" r="5" />
+      <circle class="grid-node" cx="420" cy="280" r="4" />
+      <circle class="grid-node" cx="680" cy="200" r="4" />
+      <circle class="grid-node" cx="1100" cy="260" r="3" />
+      <circle class="grid-node" cx="640" cy="700" r="3" />
+      <circle class="grid-node" cx="900" cy="660" r="4" />
+      <circle class="grid-pulse-ring" cx="760" cy="380" r="6" />
+      <circle class="grid-pulse-ring" cx="340" cy="480" r="5" style="animation-delay:0.9s" />
+      <circle class="grid-pulse-ring" cx="980" cy="440" r="5" style="animation-delay:1.7s" />
+    </g>
+  </svg>
+  <div class="hero-inner">
+    <div class="eyebrow">ZYPP FOFO FRANCHISE NETWORK</div>
+    <h1>The demand grid is<br/>already <span class="accent">live</span>.<br/>Your hub plugs straight in.</h1>
+    <p class="hero-sub">Every dark store and battery-swap point on this map is quick-commerce demand and EV energy infrastructure that already exists in your city — before you sign a single lease. This is the ground truth a Zypp FOFO franchise inherits on day one.</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><span class="num" id="heroTotal">0</span><span class="lbl">Live network points</span></div>
+      <div class="hero-stat"><span class="num" id="heroCities">0</span><span class="lbl">Cities covered</span></div>
+      <div class="hero-stat"><span class="num">3</span><span class="lbl">Networks mapped</span></div>
+    </div>
+    <div>
+      <button class="cta-btn" onclick="document.getElementById('mapSection').scrollIntoView({behavior:'smooth'})">Explore the live map ↓</button>
+      <button class="cta-btn ghost" onclick="document.getElementById('networksOverview').scrollIntoView({behavior:'smooth'})">See the networks</button>
+    </div>
+  </div>
+</section>
+
+<section class="section-wrap" id="networksOverview">
+  <div class="section-head">
+    <div class="eyebrow">THREE NETWORKS, ONE OPPORTUNITY</div>
+    <h2>Quick-commerce dark stores and battery-swap infrastructure — already dense in the cities you're evaluating.</h2>
+  </div>
+  <div class="network-cards" id="networkCards"></div>
+</section>
+
+<section class="section-wrap alt">
+  <div class="section-head">
+    <div class="eyebrow">WHERE THE DENSITY IS</div>
+    <h2>Top cities by combined network footprint</h2>
+  </div>
+  <div class="bars" id="topCitiesChart"></div>
+</section>
+
+<section class="map-section" id="mapSection">
+  <div class="section-head">
+    <div class="eyebrow">EXPLORE</div>
+    <h2>Live network map</h2>
+  </div>
+  <div class="map-frame">
+<div id="app">
+  <div id="sidebar">
+    <h1>Network Map</h1>
+    <div class="sub">Dark stores & battery-swap networks · live snapshot</div>
+    <div class="stat-row">
+      <div class="stat-box"><div class="num" id="statStores">0</div><div class="lbl">Pins shown</div></div>
+      <div class="stat-box"><div class="num" id="statCities">0</div><div class="lbl">Cities</div></div>
+    </div>
+    <label>Search store / address</label>
+    <input id="searchBox" type="text" placeholder="e.g. Whitefield, HSR, Andheri..." />
+    <label>Filter by city</label>
+    <select id="cityFilter"></select>
+
+    <div id="networkPanel">
+      <label style="margin-top:0;">Networks</label>
+      <div id="networkList"></div>
+    </div>
+
+    <label style="margin-top:14px;">Cities (by pin count, active layers)</label>
+    <div id="cityList"></div>
+    <div class="legend-note">
+      Mooving and Sun Mobility layers are wired up and ready — just share their station lists (city, address, lat, long) and I'll drop the data straight into these layers on this same map.
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+  </div>
+</section>
+
+<section class="cta-banner">
+  <div class="eyebrow" style="justify-content:center;">READY WHEN YOU ARE</div>
+  <h2>Your franchise hub could be the next pulse on this map.</h2>
+  <p>Talk to the Zypp FOFO team about launching in your city.</p>
+  <button class="cta-btn" onclick="document.getElementById('mapSection').scrollIntoView({behavior:'smooth'})">Find your city on the map</button>
+</section>
+
+<footer class="site-footer">
+  LIVE SNAPSHOT · CLIENT DARK STORES + MOOVING + SUN MOBILITY · ZYPP ELECTRIC FOFO PROGRAM
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script>
+// ---- NETWORK DEFINITIONS ----
+// To add real data later: just fill the `data` array for that network with
+// objects shaped like { c: city, s: store/site name, a: address, lat, lng }
+const NETWORKS = {
+  darkstore: {
+    label: 'Client Dark Stores',
+    color: '#C6FF4D',
+    data: [{"c": "Agra", "s": "AGR-Dayalbagh", "a": "405, Ram Mohan Vihar, Aman Vatika, Dayal Bagh, Agra 282005", "lat": 27.228526, "lng": 77.996917}, {"c": "Agra", "s": "AGR-Jaipur House", "a": "19/8B/1-2, Gali No 2, Kalyan Das Jain Marg, Khatena Road, Loha Mandi, Agra - 282002", "lat": 27.189279, "lng": 77.984588}, {"c": "Agra", "s": "AGR-Sikandara", "a": "Plot No. 108, Pashchimpuri Chauraha, Sikandra, Mauja - Dahtaura, Shastripuram, Agra - 282007", "lat": 27.20208583, "lng": 77.9454795}, {"c": "Agra", "s": "AGR-Tajganj", "a": "Plot No E-3/ 60 A Taj Ganj 282001", "lat": 27.1523252, "lng": 78.0565715}, {"c": "Ahmedabad", "s": "AHM-Chandkheda", "a": "Royal Cafe & Restro, T.P.44, New CG Rd, near Swaminarayan Temple, Nigam Nagar, Chandkheda, Ahmedabad, Gujarat 382424", "lat": 23.11525, "lng": 72.592639}, {"c": "Ahmedabad", "s": "AHM-Gandhinagar", "a": "Shop No. 78, 79, 80, 81, 82, 68, 69, 70 , Pramukh Orbit Mall, Gandhinagar-Kudasan Road, Gandhinagar, Ahmedabad- 382421", "lat": 23.1845613, "lng": 72.63125414}, {"c": "Ahmedabad", "s": "AHM-Gota", "a": "Godown No 2, Gajananad Estate, Survey No 149, F P No 06, T P No 31, Opp Saral Residency, Gota Gam, Ahmedabad- 382481", "lat": 23.097435, "lng": 72.541955}, {"c": "Ahmedabad", "s": "AHM-Jagatpur", "a": "Shop No . GF :- S-15 to 23 1st:- S-114 to 122, Sun Rising Homes, Besides, Godrej Garden City, Jagatpur, Ahmedabad, Gujarat 382470", "lat": 23.109884, "lng": 72.55066}, {"c": "Ahmedabad", "s": "AHM-Makarba", "a": "GF -Shop 1, FF- Shop 101,102,103,104, Nalanda Icon, Makarba, Ahmedabad", "lat": 22.99632335, "lng": 72.5109498}, {"c": "Ahmedabad", "s": "AHM-Motera", "a": "Unit numbers ; 5,6,7,8,20,21,22,23, Ground Floor, Grand Emporio ,Motera, Ahmedabad.", "lat": 23.11021445, "lng": 72.60519544}, {"c": "Ahmedabad", "s": "AHM-Nandanbaug", "a": "Plot No. 442, near Applewoods Township Main Road, Shantipura, Ahmedabad, Gujarat 382210", "lat": 22.997339, "lng": 72.467201}, {"c": "Ahmedabad", "s": "AHM-Navrangpura", "a": "Unit 1, Ground Floor, Commerce Six One, Navrangpura, Ahmedabad,380014", "lat": 23.04050665, "lng": 72.55775173}, {"c": "Ahmedabad", "s": "AHM-New Ranip", "a": "Shop No 9 to 15, Magnate Icon,Opp Goga Maharaj Temple,Opp Talav, New Ranip Ahmedabad,382470", "lat": 23.0881521, "lng": 72.56212356}, {"c": "Ahmedabad", "s": "AHM-Nikol New", "a": "Survey no 477/2/1 Open plot , Nikol , taluka asharva , Ahmedadbad 380038", "lat": 23.044102, "lng": 72.672668}, {"c": "Ahmedabad", "s": "AHM-Nirma University", "a": "Near Blinkit Store, behind Nirma University, Tragad Rd, nr. Daily Dose Food Court, opp. ADANI PRATHAM, Ahmedabad, Gujarat 382470", "lat": 23.13125, "lng": 72.55217}, {"c": "Ahmedabad", "s": "AHM-Paldi", "a": "FF - 2, Bhikhubhai Chambers, Gandhikunj CHSL., Nr. Gandhi Ashram, Kocharab, Paldi, Ahmedabad,", "lat": 23.016747, "lng": 72.566938}, {"c": "Ahmedabad", "s": "AHM-Shantigram", "a": "Badarji Nathaji Thakor, 317,Station Road,Near Khodiyar Gam Bhagod, Khodiyar, Ahmedabad 382421", "lat": 23.15029701, "lng": 72.54099093}, {"c": "Ahmedabad", "s": "AHM-Sola", "a": "Land Parcel ......Chamunda Nagar, Sola, Ahmedabad, Gujarat 380060", "lat": 23.0794562, "lng": 72.5073023}, {"c": "Ahmedabad", "s": "AHM-South Bopal", "a": "GF 3 to 10, Sun Southrayz, South Bopal, Ahmedabad- 380058", "lat": 23.01828046, "lng": 72.46632947}, {"c": "Ahmedabad", "s": "AHM-Sundar Nagar", "a": "Anmol Business Park , GF -1,2,3, Ahmedabad, Gujrat, 380014", "lat": 23.047321, "lng": 72.558009}, {"c": "Ahmedabad", "s": "AHM-Thaltej", "a": "Survey No 532,Ranchhodray Bunglows, Nr Avsar Party Plot, Thaltej, Ahmedabad 380054", "lat": 23.04635735, "lng": 72.50421326}, {"c": "Ahmedabad", "s": "AHM-Tragad", "a": "3/3, FCI, Godown, Tragad, Chandkheda,Ahmedabad, Gujarat- 382470", "lat": 23.11745833, "lng": 72.56342717}, {"c": "Ahmedabad", "s": "AHM-Tragad SS", "a": "3/3, FCI, Godown, Tragad, Chandkheda,Ahmedabad, Gujarat,382470", "lat": 23.11738523, "lng": 72.56385181}, {"c": "Ahmedabad", "s": "AHM-Vastral", "a": "Shop no 8 to 13, Mahadev Imperial Vastral", "lat": 22.99219816, "lng": 72.65352631}, {"c": "Ahmedabad", "s": "AHM-Vavol", "a": "Survey no, 834, 835/3, TP 13, Khata no 274, Behind Reliance smart point, opposite Mihir Park, Vavol, Gandhinagar, Gujarat 382016", "lat": 23.2301111, "lng": 72.6193889}, {"c": "Ahmedabad", "s": "AHM-Vraj Vihar 3", "a": "No 1, 4 NR Pushpak Apartment, B/H Jodhpur Gham, Ahmedabad, 380015", "lat": 23.01690222, "lng": 72.51887677}, {"c": "Ambala", "s": "AMB-Arya Nagar", "a": "961/962, Preet Nagar, Jagadhari Rd, Near Monga Hospital ,Ambala Cantt, Haryana 133001", "lat": 30.337112, "lng": 76.864876}, {"c": "Ambala", "s": "AMB-Sector 7", "a": "Ganpati Shopping Mall Pvt Ltd( Galaxy World Mall) , Plot No-1, Sector-7, HUDA, Ambala City 134003", "lat": 30.373785, "lng": 76.782179}, {"c": "Amritsar", "s": "ATQ-Gumtala", "a": "Khasra No 83/29, 83/27 min situated, Gumtala, Sub-urban Airport Road, Amritsar, Punjab", "lat": 31.6642465, "lng": 74.8448465}, {"c": "Amritsar", "s": "ATQ-Mohan Nagar", "a": "Plot No 276, East Mohan Nagar, Industrial Area, Amritsar, Punjab 143001", "lat": 31.622785, "lng": 74.89687}, {"c": "Amritsar", "s": "ATQ-Sandhu Colony", "a": "Sandhu colony B block Chheharta Amritsar", "lat": 31.62767, "lng": 74.80861}, {"c": "Bareilly", "s": "BEK-Green Park Colony", "a": "Jamuna Lawn,Pawan Vihar,Bisalpur Road opposite:VC gate ,Rohilkhand University,Barielly-243001", "lat": 28.3609167, "lng": 79.4588056}, {"c": "Bareilly", "s": "BEK-Janakpuri", "a": "Lower Ground floor , Sood Dharam Kanta Churaha ,Prem Nagar, Bareilly, Uttar Pradesh 243003", "lat": 28.375635, "lng": 79.421319}, {"c": "Bareilly", "s": "BEK-Mahanagar Colony", "a": "399/35- D/A, 399/35-D/A4/341, Rampur Garden, Bareilly, Uttar Pradesh", "lat": 28.39054323, "lng": 79.45453077}, {"c": "Bareilly", "s": "BEK-Rampur Garden", "a": "Ground floor Kailash tower, opposite Ramada Encore, near Company garden, Rampur garden Civil Lines, Bareilly, Uttar Pradesh 243001", "lat": 28.347679, "lng": 79.429551}, {"c": "Belgavi", "s": "BEL-Khanapur Road", "a": "Site no - 85, Block no G1 & G2, Mangalwar Peth 243 GF, Tilkawadi, Belgavi - 590006", "lat": 15.8347758, "lng": 74.50261744}, {"c": "Belgavi", "s": "BEL-Sector 12", "a": "Plot no. 617 Sector 5 â€œShree Nagar Spacesâ€  Double Road, Opp: Garden, Shree Nagar Belagavi 590017", "lat": 15.8796111, "lng": 74.5268611}, {"c": "Bengaluru", "s": "BLR - Bhadrappa Layout", "a": "No. 1, Lower Ground Floor/ Basement, BBMP Present Katha NO. 13/11/21A/31, BBMP Ward No. 08, Near Bhadrappa Layout, Ring Road, Nagashetty Halli Village, Kasaba Hobli, Bangalore, Bengaluru (Bangalore) Urban, Karnataka, 560094", "lat": 13.04753258, "lng": 77.57837343}, {"c": "Bengaluru", "s": "BLR- Brookefield SS", "a": "Sy no 111/2, Hoodi Village, Krishnarajpuram Hobli, Bangalore - 560048", "lat": 12.9957298, "lng": 77.7197488}, {"c": "Bengaluru", "s": "BLR- Sonnenahalli New", "a": "D V complex No 108 (2/7, 2/6) 60 feet lake road, N G E F Empyloyees Layout 2nd Stage, Mallathahalli, Bengaluru, Karnataka 560056", "lat": 12.96170119, "lng": 77.49901482}, {"c": "Bengaluru", "s": "BLR-27th Main Road", "a": "839, 24th MAIN 1st sector Tirumala Talkies Road HSR Bengaluru, Karnataka 560102", "lat": 12.92066697, "lng": 77.64927694}, {"c": "Bengaluru", "s": "BLR-Abbigere", "a": "Sy no 33/2, Mydarahlli Village, Yeshwanthpur Hobli, Bangalore - 560090", "lat": 13.074063, "lng": 77.519827}, {"c": "Bengaluru", "s": "BLR-Agrahara Road", "a": "28/2 , 79/1, 1/1, 1/2, 4th Stage Varthur hobli Devarabichanahalli Kariyammana Agrahara, Bellandur, Bengaluru, Karnataka 560103", "lat": 12.931722, "lng": 77.682389}, {"c": "Bengaluru", "s": "BLR-Anjanapura", "a": "No. 26/1 MALASANDRA , VAJARAHALLI BANGALORE 560062", "lat": 12.86034948, "lng": 77.54171841}, {"c": "Bengaluru", "s": "BLR-Arekere", "a": "88/3, Jai Hanuman Nagar, BTS LAYOUT, INDIRA GANDHI NAGAR, Bannerghatta Main Rd, Arekere, Bengaluru, Karnataka 560076", "lat": 12.885917, "lng": 77.6083204}, {"c": "Bengaluru", "s": "BLR-Avalahalli Main", "a": "No 45, 17th Main Road(Muneshwara block),New timber yard layout, Bengaluru - 560026", "lat": 12.946167, "lng": 77.549333}, {"c": "Bengaluru", "s": "BLR-Bagalakunte", "a": "14/2,3 14/1 Bagalakunte Hessaraghatta Main Road Bangalore 560073", "lat": 13.06371941, "lng": 77.50432545}, {"c": "Bengaluru", "s": "BLR-Bagalur", "a": "183/5, Kattigenahalli, Yelahanka, Bangalore- 560063", "lat": 13.12263575, "lng": 77.62344754}, {"c": "Bengaluru", "s": "BLR-Balagere SS", "a": "Sy no 71/7, Balagere panathur main road Bangalore 560087", "lat": 12.93955622, "lng": 77.72375933}, {"c": "Bengaluru", "s": "BLR-Banashankari Network", "a": "Ground Floor,11/1,Ramanjaneya Nagar,Bengaluru,Bengaluru Urban,Karnataka,560061", "lat": 12.91552164, "lng": 77.5456912}, {"c": "Bengaluru", "s": "BLR-Banashankari New", "a": "Sri Sundar Mahal, 952/A, 14th Cross, 2nd phase Girinagar, Phase 2, Banashankari, Bengaluru, Karnataka", "lat": 12.938726, "lng": 77.539149}, {"c": "Bengaluru", "s": "BLR-Banjara Layout", "a": "Sy 529/2, KSM Enclave, Kalkere Village, Off Banjara Layout main road, Dooravaninagar Post, KR puram Hobli, Bangalore - 560016", "lat": 13.03608037, "lng": 77.66570773}, {"c": "Bengaluru", "s": "BLR-BANNERGHATTA", "a": "Begur-Hulimavu Rd,Krishna Layout,Hulimavu,Bengaluru,Karnataka 560076", "lat": 12.87747, "lng": 77.60264}, {"c": "Bengaluru", "s": "BLR-Bannerghatta Network", "a": "Sy no - 59/1A, Gottigere village, Uttarahalli Hobli, Bangalore - 560076", "lat": 12.86591329, "lng": 77.59627361}, {"c": "Bengaluru", "s": "BLR-Bannerghatta Network 2", "a": "Sy no 27/5,Yelenhalli village,Begur Hobli,Akshay nagar,Bangalore-560068", "lat": 12.86837, "lng": 77.61872}, {"c": "Bengaluru", "s": "BLR-Bannerghatta SS", "a": "SY No 27/5, Yelanhalli Village, Begur Hobli, Akshay Nagar, Bangalore 560068", "lat": 12.868445, "lng": 77.618553}, {"c": "Bengaluru", "s": "BLR-BASAVANAPURA", "a": "No-5, Basavanapura Rd, near krish theatre, Bhattarahalli, Basavanapura, Krishnarajapura, Bengaluru, Karnataka 560036", "lat": 13.015649, "lng": 77.70943}, {"c": "Bengaluru", "s": "BLR-Basavanapura Network", "a": "Site No 8,Sy No 42,Kodigehalli Village,Krishnarajapuram Hubli,Bangalore East-560036", "lat": 13.00442, "lng": 77.72122}, {"c": "Bengaluru", "s": "BLR-BASAVANAPURA NETWORK 2", "a": "Survey No.103, Goravigere Village, Bangalore East, Bangalore Karnataka 560049", "lat": 13.03206661, "lng": 77.70806469}, {"c": "Bengaluru", "s": "BLR-BASAVANAPURA SS", "a": "No.37/3, Battarahalli Road, Basavanapura main, Near SBI bank Bangalore -560049", "lat": 13.0157507, "lng": 77.70927438}, {"c": "Bengaluru", "s": "BLR-Belathur", "a": "Site No. 1,2,3,4 formed out of survey no 23/5, Kumbena Agrahara Bidarahalli Hobli, Kadugodi Bangalore - 560067", "lat": 12.9996667, "lng": 77.7464722}, {"c": "Bengaluru", "s": "BLR-BELLANDUR - 2", "a": "#100 SJR Commercial near to, Doddakannelli Road Gear Road Devarabisanalli, Adarsh Palm Retreat, Belandur, Bellandur, Bengaluru, Karnataka 560035", "lat": 12.91910594, "lng": 77.69695312}, {"c": "Bengaluru", "s": "BLR-Bellandur 6", "a": "Site No 3, BBMP Katha No 534/520/68/2/3, Present Katha No 524/534/520/68/2/3, Bellandur Village, Varthur Hobli, Bangalore East.", "lat": 12.92153068, "lng": 77.6778849}, {"c": "Bengaluru", "s": "BLR-Bellandur new", "a": "No-1124/1133/1212/96/7, BELLANDUR GRAMA.BANGALORE- 560103", "lat": 12.92856098, "lng": 77.67066436}, {"c": "Bengaluru", "s": "BLR-Bellandur SS", "a": "Site No 3, BBMP Katha No 534/520/68/2/3, Present Katha No 524/534/520/68/2/3, Bellandur Village, Varthur Hobli, Bangalore East.", "lat": 12.9217794, "lng": 77.6779325}, {"c": "Bengaluru", "s": "BLR-Bellandur-3", "a": "19/2 Varthur Main Road,Outer Ring Road,Kadubisanahalli,Bangalore 560037", "lat": 12.93828097, "lng": 77.6954677}, {"c": "Bengaluru", "s": "BLR-BELLANDUR-4", "a": "No 12,K 46/19,46/20,Yamalur,Bangalore 560037", "lat": 12.94884312, "lng": 77.68669714}, {"c": "Bengaluru", "s": "BLR-Bellandur-5", "a": "No: 6/1 Boganahalli Village Bellandur Post Bangalore - 560103", "lat": 12.929433, "lng": 77.704772}, {"c": "Bengaluru", "s": "BLR-BEML Layout", "a": "No. 2559/11/2 Mylasandra Kengeri Bangalore - 560059", "lat": 12.91703243, "lng": 77.49891252}, {"c": "Bengaluru", "s": "BLR-BHADRAPPA LAYOUT NETWORK", "a": "22&23,Kodigehalli Main Rd,Defence Layout,Sahakar Nagar,Sanjeevini Nagar,Bengaluru,Karnataka 560092", "lat": 13.05902074, "lng": 77.58133229}, {"c": "Bengaluru", "s": "BLR-Bommasandra", "a": "109/ 1 kamsandra Ananth Nagar, Phase 1 electronic city Bangalore - 560100", "lat": 12.8321446, "lng": 77.69085963}, {"c": "Bengaluru", "s": "BLR-BROOKEFIELD", "a": "FIRST FLOOR, SY NO 18, HOODI VILLAGE, K.R PURAM HOBLI ,BROOKFIELD, K R Puram, B.B.M.P East, Karnataka, 560048", "lat": 12.98497, "lng": 77.71066}, {"c": "Bengaluru", "s": "BLR-Brookfield Network", "a": "No 513/509/3, Whitefield Main Road, Puttappa Industrial Area, Mahadevapura, Bangalore-560048", "lat": 12.99616854, "lng": 77.69103524}, {"c": "Bengaluru", "s": "BLR-Brookfield Network-2", "a": "Sy no 111/2, Hoodi Village, Krishnarajpuram Hobli, Bangalore - 560048", "lat": 12.9951836, "lng": 77.7201213}, {"c": "Bengaluru", "s": "BLR-BTM Layout Network-3", "a": "No 3,1st Cross,Madiwala Extn,Bangalore-560068", "lat": 12.92504226, "lng": 77.61740928}, {"c": "Bengaluru", "s": "BLR-BTM LAYOUT NEW", "a": "No 7, 4th A Main Road, Chikka Adugodi New extension", "lat": 12.9266331, "lng": 77.60991496}, {"c": "Bengaluru", "s": "BLR-BTM-2", "a": "6&7, NS Palya,Bannergata road, Bangalore -560076", "lat": 12.91177954, "lng": 77.60319877}, {"c": "Bengaluru", "s": "BLR-BTM-3", "a": "Building No.856/774/623/3/ 5/57/ 53/ 1-2 S.V.Arcade,Bilekahalli,B.G.Road,Bangalore 560076", "lat": 12.89932425, "lng": 77.60549641}, {"c": "Bengaluru", "s": "BLR-Budigere Cross", "a": "Sry no135, Bommenahalli main road Opposite Brigade Buena Vista Mandur Post Bangalore East(T), Bengaluru- 560 049", "lat": 13.063784, "lng": 77.741966}, {"c": "Bengaluru", "s": "BLR-Carmelaram", "a": "33/1 Varthur Main Road, CHIKKABELLANDUR VARTHUR HOBLI,BENGALURU-560035.", "lat": 12.908522, "lng": 77.71151}, {"c": "Bengaluru", "s": "BLR-Challakere", "a": "#1&2, Katha no. 34, Sy no-90, Krishnananda Road, Chellekere, Babusapalya, Kalyan nagar. Bangalore - 560043", "lat": 13.02629, "lng": 77.64364}, {"c": "Bengaluru", "s": "BLR-Chamrajpet", "a": "156 Albert Victoria Road Chamarajpet Bangalore - 560018", "lat": 12.960098, "lng": 77.559489}, {"c": "Bengaluru", "s": "BLR-Chandapura", "a": "Khatha No. 636/ 1148/420/38, 637/1149/421/39, 648/1160/432/50, 649/1162/433/51, Iggalur Village, Anekal Taluk, Bangalore", "lat": 12.78979486, "lng": 77.70420581}, {"c": "Bengaluru", "s": "BLR-Chickpet New", "a": "No -159, Kavi Lakshmeesha Road, Vishweshwarapura Bengaluru, Karnataka 560004", "lat": 12.95477912, "lng": 77.57899927}, {"c": "Bengaluru", "s": "BLR-Cholayanakanalli", "a": "H.L no.34, V.P Katha no. 518A Cholayanakanalli Village Kasaba Hobli Bangalore", "lat": 13.02922, "lng": 77.59377}, {"c": "Bengaluru", "s": "BLR-Choodasandra", "a": "no 96 , Parapanaagrahara ,Meenakshi layout ,Electronic City post ,Bangalore -560102", "lat": 12.8821174, "lng": 77.6733285}, {"c": "Bengaluru", "s": "BLR-CV Raman Nagar Network", "a": "6th mile,No 23,Bangalore Co-Operative Industrial Estate,Old Madras Rd,Bengaluru,Karnataka 560016", "lat": 12.996864, "lng": 77.673218}, {"c": "Bengaluru", "s": "BLR-CV Raman Nagar Network-2", "a": "No 02,Annasandra Palya,HAL Post,Bangalore 560017", "lat": 12.96657501, "lng": 77.67172065}, {"c": "Bengaluru", "s": "BLR-CV RAMAN NAGAR NEW", "a": "No 88/2, PID 83-55-88/2,BBMP ward no 57,Kaggadapura,Near Balaji Layout,C V Raman Nagar,Bangalore", "lat": 12.97905901, "lng": 77.67836866}, {"c": "Bengaluru", "s": "BLR-CV Raman Nagar SS", "a": "Ground Floor, No 88/2, PID 83-55-88/2, BBMP ward no 57, Kaggadapura, Near Balaji Layout, CV Raman Nagar, Bangalore- 560093", "lat": 12.97891783, "lng": 77.67838544}, {"c": "Bengaluru", "s": "BLR-Dasarahalli", "a": "Katha No.38/1, New Katha No.1780/A, Old Property No.38/1, situated at Mariyanna Palya, Dasarahalli Dhakale, K.R.Puram Hobli, Bangalore- 560024", "lat": 13.051424, "lng": 77.607561}, {"c": "Bengaluru", "s": "BLR-Devanahalli", "a": "Sy no-374/3A, Sulibele road, Behind Brigade Orchards, Devanahalli village, Kasaba hobli, Devanahalli taluk, Bangalore rural- 562110", "lat": 13.23884831, "lng": 77.72347676}, {"c": "Bengaluru", "s": "BLR-Doddakannelli", "a": "Sy No 28, Site No 02, Sarjapur Road, near Shaneshwara Swamy Temple, Doddakannalli, Bangalore, Karnataka-560035", "lat": 12.90605, "lng": 77.697337}, {"c": "Bengaluru", "s": "BLR-Doddakannelli SS", "a": "SITE N0-03 DODDAKANNAIHALLI VILLAGE BENGALURU Doddakannahalli Grama,, BENGALURU", "lat": 12.90604915, "lng": 77.69737127}, {"c": "Bengaluru", "s": "BLR-Dooravani Nagar", "a": "#15/1 opp to police station Ram murthy Nagar Bangalore - 560016", "lat": 13.01020348, "lng": 77.66771313}, {"c": "Bengaluru", "s": "BLR-Dooravani Nagar SS", "a": "#15/1 opp to police station Ram murthy Nagar Bangalore - 560016", "lat": 13.00978912, "lng": 77.66760807}, {"c": "Bengaluru", "s": "BLR-Electronic city network", "a": "Plot no 1,2,7 & 8.Katha no 540/290,Sy no 290 , Hulimangala Village, Anekal Taluk, Bangalore-560100", "lat": 12.8373766, "lng": 77.64362247}, {"c": "Bengaluru", "s": "BLR-Electronic City Network-2", "a": "Survey no 119/2 and 119/7, Opp Vinayaka Layout, next to Godrej ecity, Doddathogur, Electronic City post, Bangalore 560 100", "lat": 12.85202043, "lng": 77.65224877}, {"c": "Bengaluru", "s": "BLR-Electronic City New", "a": "RR Complex, Sy no 34/2 Golla halli Electronics city phase-1 Anekal taluk Bengaluru 560100 Karnataka", "lat": 12.83610023, "lng": 77.66492453}, {"c": "Bengaluru", "s": "BLR-Electronic City SS", "a": "Survey no 119/2 and 119/7, Opp Vinayaka Layout, next to Godrej ecity, Doddathogur, Electronic City post, Bangalore 560 100", "lat": 12.85187649, "lng": 77.65223454}, {"c": "Bengaluru", "s": "BLR-Golahalli", "a": "10/3 Gollahalli, Electronic City Bangalore 560100", "lat": 12.864209, "lng": 77.569285}, {"c": "Bengaluru", "s": "BLR-Goraguntepalya", "a": "#2/1, 8TH CROSS, GORAGUNTEPALYA BANGALORE 560022", "lat": 13.02475, "lng": 77.537306}, {"c": "Bengaluru", "s": "BLR-GUNJUR", "a": "Adiparinitha Nilaya Site Number 58, Gunjur Village, Bengaluru, Karnataka 560087", "lat": 12.9286633, "lng": 77.7380822}, {"c": "Bengaluru", "s": "BLR-GUNJUR Network", "a": "BBMP Katha No 264/197, Old Village Katha No 31/1A1, Balagere Village, Varthur Hobli, Bangalore East.", "lat": 12.93949838, "lng": 77.72908936}, {"c": "Bengaluru", "s": "BLR-HBR Layout", "a": "No. 14/90 14th cross, Nagawara main road, Near Ganesha temple, Opposite Sai hospital,Bangalore-560045", "lat": 13.03663419, "lng": 77.62425878}, {"c": "Bengaluru", "s": "BLR-HeadOffice-Cafe", "a": "773, Sarjapur Main Road, Kaikondarahalli, Bengaluru, Karnataka", "lat": 13.651164, "lng": 75.080837}, {"c": "Bengaluru", "s": "BLR-HEBBAL NEW", "a": "2nd Cross Rd, Kaveri Nagar, Kaval Bairasandra, Bengaluru, Karnataka 560032, India", "lat": 13.0324086, "lng": 77.61231342}, {"c": "Bengaluru", "s": "BLR-Hegganahalli", "a": "No. 273/1,2 and 3, 1st main, 2nd B cross,Hegganahalli, Vishwaneedam Post, (Near Peenya 2nd stage) Bangalore -560091.", "lat": 13.007886, "lng": 77.506191}, {"c": "Bengaluru", "s": "BLR-Hennur New", "a": "108/2-11 Hennur Village Rd, HBR Layout 4th Block, HBR Layout, Bengaluru, Karnataka 560043", "lat": 13.03859871, "lng": 77.64591263}, {"c": "Bengaluru", "s": "BLR-Hope Farm New", "a": "132/2 Channasandra Kadugodi main road, Near FCI GOWDAN CHANNASANDRA Bangalore 560067", "lat": 12.98416, "lng": 77.767}, {"c": "Bengaluru", "s": "BLR-Hope Farm SS", "a": "132/2 Channasandra Kadugodi main road, Near FCI GOWDAN CHANNASANDRA Bangalore 560067", "lat": 12.98409427, "lng": 77.76738167}, {"c": "Bengaluru", "s": "BLR-HSR Layout New", "a": "17/5, 18th Cross Rd, Sector 3, HSR Layout, Bengaluru, Karnataka 560102", "lat": 12.91183266, "lng": 77.64398388}, {"c": "Bengaluru", "s": "BLR-HSR SS", "a": "Ground Floor, Sy. No. 26/10, 6th Cross, Ramanna Compund, Mangammanapalya, Yellukunte Dhakle, Banglore, 560068", "lat": 12.90602471, "lng": 77.63765524}, {"c": "Bengaluru", "s": "BLR-HSR-2", "a": "ITI Layout, Sector 7, Somasundarapalya, Bengaluru, Karnataka 560068", "lat": 12.899316, "lng": 77.651296}, {"c": "Bengaluru", "s": "BLR-HSR-3", "a": "Sy No 26/10, 6th Cross, Ramanna Compound, Mangammanapalya, Yellukunte Dhakle, Bangalore, Karnataka - 560068", "lat": 12.905778, "lng": 77.637514}, {"c": "Bengaluru", "s": "BLR-INDIRANAGAR NEW", "a": "No 5/2, 6th cross, kodihalli, Bangalore - 560008, Karnataka", "lat": 12.962298, "lng": 77.645909}, {"c": "Bengaluru", "s": "BLR-ITPL Layout", "a": "385/74 Varthur Main Road Thurbarahalli, Whitefield Post Bangalore - 560066", "lat": 12.96191262, "lng": 77.71678497}, {"c": "Bengaluru", "s": "BLR-Jakkur Network", "a": "No 83/1, 4, Rachenahalli Main Rd, behind Manyata Tech Park Gate, Rachenahalli, Jakkur, Mesthri Palya, Bengaluru, Karnataka 560077", "lat": 13.059459, "lng": 77.622438}, {"c": "Bengaluru", "s": "BLR-Jakkur New", "a": "60/1 ,DASARHALLI, VIRUPAKSHAPURA , BANGALORE, 560024", "lat": 13.06662468, "lng": 77.6092697}, {"c": "Bengaluru", "s": "BLR-JAYANAGAR New", "a": "No 57/190, Rashtriya Vidyalaya Rd, 2nd Block, Jayanagar, Bengaluru, Karnataka 560004", "lat": 12.941703, "lng": 77.580188}, {"c": "Bengaluru", "s": "BLR-JC Nagar", "a": "53, 54, AND 55 16TH B MAIN ROAD, J C NAGAR, BANGALORE 560086", "lat": 13.0031742, "lng": 77.5308889}, {"c": "Bengaluru", "s": "BLR-JP Nagar Network", "a": "1st Floor, 64/10, Banashankari, Kanakapura Main Road, Bangalore 560078", "lat": 12.91322648, "lng": 77.57300634}, {"c": "Bengaluru", "s": "BLR-JP Nagar Network-2", "a": "No 49,,4th main road Suncity layout JP Nagar 7th phase Bangalore- 560078", "lat": 12.887526, "lng": 77.586572}, {"c": "Bengaluru", "s": "BLR-JP Nagar New", "a": "#7, Katha No 36/2, Puttenahalli, 2nd Main Rd, Jagruthi Colony, BOB Colony, Phase 7, J. P. Nagar, Bengaluru, Karnataka 560078", "lat": 12.894204, "lng": 77.584495}, {"c": "Bengaluru", "s": "BLR-JP Nagar SS", "a": "No.49, 1st Floor, 4th Main Road, Suncity Layout, JP Nagar, 7th Phase, Bangalore-560078", "lat": 12.88799571, "lng": 77.58676173}, {"c": "Bengaluru", "s": "BLR-Junnasandra", "a": "No 19/5, Junnasandara to Hallanayakanahalli village Road, Opp Grama Panchayati Office, Carmelaram Post, Sarjapur Main Road, Bengaluru- 560035", "lat": 12.90252, "lng": 77.68669}, {"c": "Bengaluru", "s": "BLR-Kadarenahalli", "a": "17/2 1 Kadhirenahalli main Subramanyapura main Road Bangalore- 560070", "lat": 12.914745, "lng": 77.559864}, {"c": "Bengaluru", "s": "BLR-Kadarenahalli SS", "a": "17/2 1 Kadhirenahalli main Subramanyapura main Road Bangalore- 560070", "lat": 12.91455934, "lng": 77.56002061}, {"c": "Bengaluru", "s": "BLR-Kadugodi", "a": "6/9 ECC Road Pattanduru Agrahara, Whitefield Bangalore 560066", "lat": 12.98612069, "lng": 77.7450889}, {"c": "Bengaluru", "s": "BLR-Kalyan Nagar Network", "a": "No 89, Hennur Main road, Kacharakana Halli, Bangalore, Karnataka - 560084", "lat": 13.01482, "lng": 77.62778}, {"c": "Bengaluru", "s": "BLR-KALYAN NAGAR NEW", "a": "#12, Ayyappa Temple Road,Subbanapalya, Banaswadi main road,Bangalore,Karnataka-560043", "lat": 13.006655, "lng": 77.641639}, {"c": "Bengaluru", "s": "BLR-Kambipura", "a": "#43 & Old Khata No: 43/22 & 43/23, kengeri Hobli, Kambipura Village, Kumbalgodu Post, Bangalore - 560074", "lat": 12.8872429, "lng": 77.45868}, {"c": "Bengaluru", "s": "BLR-Kannamangala", "a": "Sai Gardens, Belathur, Krishnarajapura, Bengaluru, Karnataka 560067", "lat": 13.01745885, "lng": 77.7593783}, {"c": "Bengaluru", "s": "BLR-Kannika Nagar", "a": "No.182,259,Bommasandra,Jigani Link Road Bommasandra Industrial Area Besides Deccan Chronicle,Bangalore -560105", "lat": 12.79803706, "lng": 77.66311187}, {"c": "Bengaluru", "s": "BLR-Kasturinagar", "a": "No. 3M - 217 East of NGEF Layout ORR Kasturinagar Bangalore 560043", "lat": 13.0047881, "lng": 77.6629972}, {"c": "Bengaluru", "s": "BLR-Kengeri", "a": "Site no 2c, survey no 72, Valagerehalli village, opposite Ananth cars, near Dubasipalya area Bangalore 560059.", "lat": 12.92355387, "lng": 77.49306732}, {"c": "Bengaluru", "s": "BLR-Kogilu Road", "a": "#117/117a, Sy no 107, Kogilu Village, Kogilu layout, Yelankha - Bellahalli Main road, Bangalore - 560064", "lat": 13.10307433, "lng": 77.63013442}, {"c": "Bengaluru", "s": "BLR-Koramangala Network", "a": "430/1, Mallappa Reddy Layout, Koramangala 8th Block, Koramangala, Bengaluru, Karnataka 560095", "lat": 12.9444629, "lng": 77.6181869}, {"c": "Bengaluru", "s": "BLR-Kothnur New", "a": "No. 3, Khatha No.44, Present B B M P Property No. 9/3/44/1/10/3/44/3/11/3/44/2, situated a t K o t h a n u r Village, Uttarahalli Hobli, Bangalore South Taluk, Bangalore - 560076", "lat": 12.87009657, "lng": 77.58372383}, {"c": "Bengaluru", "s": "BLR-Kudlu", "a": "No.48/2, Kudlu Main Road Hosur Road, Madivala Post, Bangalore - 560068", "lat": 12.8906552, "lng": 77.6456667}, {"c": "Bengaluru", "s": "BLR-Kumaraswamy Layout", "a": "No 70 BBMP Khatha, No 235/70/199 J.C. Industrial Layoyt Formed in Sy. no. 40/1,2 and 5 of Yelachanahalli Village 2nd Stage Uttarahalli Hobli Bangalore- 560062", "lat": 12.89481283, "lng": 77.56436304}, {"c": "Bengaluru", "s": "BLR-Magadi Road", "a": "No.373/374, Heritage Complex, Thunganagara Main Road, Thunganagar, Magadi Road, Herohalli, Bangalore- 560091", "lat": 12.99005606, "lng": 77.48523812}, {"c": "Bengaluru", "s": "BLR-Malagala", "a": "Smt Manchamma Honnegowda kalyana Mantapa Malagala Main Rd, Govindaraja Nagar Ward, 2nd Stage, Naagarabhaavi, Bengaluru, Karnataka 560072", "lat": 12.97812065, "lng": 77.51643345}, {"c": "Bengaluru", "s": "BLR-Malleshwaram new", "a": "157/1- 1,5th Main road,Prakash Nagar,Prakash Nagar,3rd Phase extension,Rajajinagar", "lat": 12.987709, "lng": 77.561344}, {"c": "Bengaluru", "s": "BLR-Malleshwaram SS", "a": "157/1-1, 5th Main Road, Prakash Nagar, 3rd Phase Extension, Rajajinagar, Bangalore 560021", "lat": 12.98791805, "lng": 77.56130541}, {"c": "Bengaluru", "s": "BLR-Marathahalli 2", "a": "Survey no -9/1, Outer Ring Rd, Brindavan Extension, Doddanekundi, Doddanekkundi, Bengaluru, Karnataka 560037", "lat": 12.97467998, "lng": 77.69700174}, {"c": "Bengaluru", "s": "BLR-Marathahalli New", "a": "Sy no-37/3, Thubarahalli Village, Varthur Hobli, Bengaluru EastTaluk - 560067", "lat": 12.95185786, "lng": 77.7195682}, {"c": "Bengaluru", "s": "BLR-Marathahalli-3", "a": "NEW 26 Chinnappana Halli, NO.7, 4TH MAIN, IST CROSS, CHINNAPPANAHALLI VILLAGE, BENGALURU -560037", "lat": 12.96160746, "lng": 77.70483424}, {"c": "Bengaluru", "s": "BLR-Marathahalli-4", "a": "No 111/3 SGR Dental College Rd, Kasavanahalli Village, Marathahalli, Bengaluru Karnataka 560037", "lat": 12.94915445, "lng": 77.70329588}, {"c": "Bengaluru", "s": "BLR-Marathalli SS", "a": "no-37/3, Thubarahalli Village, Varthur Hobli, Bengaluru EastTaluk - 560067", "lat": 12.9514612, "lng": 77.7197012}, {"c": "Bengaluru", "s": "BLR-Margosa road", "a": "Malleshwaram, MCP TOWERS, #24 9th cross, Between 3rd and 4th main Malleshwaram, Bangalore -560003", "lat": 13.0059977, "lng": 77.5695793}, {"c": "Bengaluru", "s": "BLR-Mathikere", "a": "Kundan Complex, No.17 1st Main Road, Gokul 1st Stage, 3rd Phase Yeswantpur Bangalore 560022", "lat": 13.0265, "lng": 77.558028}, {"c": "Bengaluru", "s": "BLR-Mico Layout Network", "a": "17&18, Revenue Layout, Singasandra, Bangalore-560068", "lat": 12.87771825, "lng": 77.64508193}, {"c": "Bengaluru", "s": "BLR-Mico layout network-2", "a": "Sy no. 1/4 and Katha no.99/1 Bommanahalli Village Begur Hobli", "lat": 12.9036896, "lng": 77.62857765}, {"c": "Bengaluru", "s": "BLR-Mico layout New", "a": "Site no. 5, 10th A cross, Begur main road, Hongasandra, Bommanahalli, Bengaluru 560068", "lat": 12.892833, "lng": 77.628083}, {"c": "Bengaluru", "s": "BLR-Nagavara", "a": "#299 Vyalikaval Housing society Nagawara 560045", "lat": 13.038049, "lng": 77.617309}, {"c": "Bengaluru", "s": "BLR-Nagondanahalli", "a": "Sy 6/4, Nagondanahalli whitefield Bangalore - 560066", "lat": 12.97486139, "lng": 77.7718582}, {"c": "Bengaluru", "s": "BLR-Narayana reddy Layout", "a": "#6, Katha No 68-163-6, Patel Narayana reddy Layout, 80ft road, 6th block, Egipura, Koramangala 560095.", "lat": 12.939045, "lng": 77.62645}, {"c": "Bengaluru", "s": "BLR-Narayanapura", "a": "Angadi Papanna Circle, 33/1, Dasappa Rd, opp. Daily Bean Cafe, behind Udupi Hotel, Kothanur, Bengaluru, Karnataka 560077", "lat": 13.06382134, "lng": 77.6492007}, {"c": "Bengaluru", "s": "BLR-Narayanapura Network", "a": "100/2 Site No 114 & No 115 Thanisandra, near muneshwara temple, Venkatswamappa road, Dr SRK Nagar post, Bangalore 560077", "lat": 13.06274846, "lng": 77.63500348}, {"c": "Bengaluru", "s": "BLR-Nehru Nagar", "a": "23/4/1 Shivanahalli Yelahanka Bangalore560064", "lat": 13.09133919, "lng": 77.60125138}, {"c": "Bengaluru", "s": "BLR-Neo Town", "a": "Plot No 30/19 thirupalya village near Newtown jigini hobli anekal thaluk bangalore 560099", "lat": 12.81998463, "lng": 77.66277018}, {"c": "Bengaluru", "s": "BLR-Nikoo Home New", "a": "syno 29/1 N.Nagenahalli Dr.SRK Nagar post bengaluru 560077", "lat": 13.07977074, "lng": 77.64375554}, {"c": "Bengaluru", "s": "BLR-Nikoo home SS", "a": "Nikoo Homes BLR-070R1 : 31/2, Chokkanahalli village Jakkur post, Yelahanka Hobli, presently yelahanka Taluk, Bangalore - 560064", "lat": 13.080255, "lng": 77.64413867}, {"c": "Bengaluru", "s": "BLR-Peenya Network", "a": "Sy no 44/2A, Chikkabidarakalu Village, Dasanpura Hobli, Bangalore- 560073.", "lat": 13.049816, "lng": 77.487928}, {"c": "Bengaluru", "s": "BLR-Peenya New", "a": "No.131,Khata No.1615,Kempegowdanagar,N.H-4 road,Near 8th mile,Behind HP Petrol Pump,T.Dasarahalli,Bengaluru-560057", "lat": 13.04549024, "lng": 77.50877381}, {"c": "Bengaluru", "s": "BLR-Peenya SS", "a": "1st Main Road 1st Cross Kempegowda Nagar Bangalore : 560057", "lat": 13.04563657, "lng": 77.50939157}, {"c": "Bengaluru", "s": "BLR-RAGHAVENDRA LAYOUT NETWORK", "a": "Anjanadri Layout,Konanakunte,Bengaluru,Karnataka 560062", "lat": 12.8845944, "lng": 77.55881835}, {"c": "Bengaluru", "s": "BLR-RAGHAVENDRA LAYOUT NETWORK 2", "a": "15/4 Hemmigepura, Thalaghattapura Kanakpura, Main Road Bangalore- 560062", "lat": 12.8666929, "lng": 77.5357013}, {"c": "Bengaluru", "s": "BLR-Ramamurthy Nagar Network", "a": "116/3, Vijaya bank colony, Horamavu, Bangalore", "lat": 13.01813845, "lng": 77.6597251}, {"c": "Bengaluru", "s": "BLR-RAMAMURTHY NAGAR NEW", "a": "Sy 45/2,Maragondanahalli Village,Bidarahalli hobli,Varanasi main road,Bangalore,Karnataka - 560036", "lat": 13.03362107, "lng": 77.68593737}, {"c": "Bengaluru", "s": "BLR-RICHMOND TOWN", "a": "Brigade Rd, Ashok Nagar, Bengaluru, Karnataka 560025", "lat": 12.96637618, "lng": 77.60692112}, {"c": "Bengaluru", "s": "BLR-RR Nagar Network", "a": "37-1,E Block,Channasandra Village,Uttarahalli Hobli,Banagalore 560098", "lat": 12.9031547, "lng": 77.51191762}, {"c": "Bengaluru", "s": "BLR-RR NAGAR New", "a": "Property number 170, Katha No 3660, Gattigere, Beml-3stage, Rajarajeshwari Nagar, Bangalore-560098 Land mark near white Pearl convention hall.", "lat": 12.920088, "lng": 77.522707}, {"c": "Bengaluru", "s": "BLR-RR Nagar SS", "a": "Sy. No.22/P1, in Block No.9 B situated at Channasandra village, Uttarahalli Hobli Bangalore South Taluk. 560098", "lat": 12.90277588, "lng": 77.51163204}, {"c": "Bengaluru", "s": "BLR-RWF Yelahanka", "a": "No.385. C-12, KSSIDC industrial area Yelahanka Bangalore 560064", "lat": 13.106778, "lng": 77.580361}, {"c": "Bengaluru", "s": "BLR-Sanjaynagar", "a": "Site # 5 ,2nd cross ,Muniramappa garden ( MR garden ) geddalahalli,KEB layout sanjaynagar post Bangalore 560094", "lat": 13.03273924, "lng": 77.58054019}, {"c": "Bengaluru", "s": "BLR-Sarjapur New", "a": "Survey 9/1A, Kasavanahalli Village Varthur Hobli, Ward No150 Bangalore 560035", "lat": 12.90853465, "lng": 77.67692834}, {"c": "Bengaluru", "s": "BLR-Sarjapur-2", "a": "No 108, Haralur Main Road, Haralur, Bangalore 560102", "lat": 12.9026566, "lng": 77.6613229}, {"c": "Bengaluru", "s": "BLR-Sattava East", "a": "105/3 doddabanahalli, Kannamangala (post), Bidarahalli (hobli), Bangalore 560067", "lat": 13.02716623, "lng": 77.74726407}, {"c": "Bengaluru", "s": "BLR-Sattava East SS", "a": "105/3 doddabanahalli, Kannamangala (post), Bidarahalli (hobli), Banglore 560067", "lat": 13.02716623, "lng": 77.74726407}, {"c": "Bengaluru", "s": "BLR-Seegehalli", "a": "Sy no 49/1, Seeghehalli Village, Beerappa Layout, Opposite Sobha Lake Garden, Medahalli - Kadugodi Main road, Bangalore - 560049.", "lat": 13.01943027, "lng": 77.72412424}, {"c": "Bengaluru", "s": "BLR-SHIVAJI NAGAR Network", "a": "56/4 NANDI DURGA ROAD, Bangalore- 560046", "lat": 13.00264558, "lng": 77.59946146}    ]
+  },
+  mooving: {
+    label: 'Mooving Battery Swap',
+    color: '#43E5C5',
+    data: []
+  },
+  sunmobility: {
+    label: 'Sun Mobility',
+    color: '#FFB020',
+    data: []
+  }
+};
+
+// ---- build map ----
+const map = L.map('map').setView([20.5, 79.0], 5);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+const networkLayers = {};
+const visibleNetworks = new Set(Object.keys(NETWORKS));
+
+function makeIcon(color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:13px;height:13px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.7);box-shadow:0 0 6px ${color}88"></div>`,
+    iconSize: [13, 13], iconAnchor: [6, 6], popupAnchor: [0, -8]
+  });
+}
+
+function getAllVisible() {
+  const visible = [];
+  Object.keys(NETWORKS).forEach(key => {
+    if (visibleNetworks.has(key)) {
+      (NETWORKS[key].data || []).forEach(d => { if (d.lat) visible.push({ ...d, _net: key }); });
+    }
+  });
+  return visible;
+}
+
+function rebuildMap(filterCity = 'all', searchTerm = '') {
+  Object.values(networkLayers).forEach(l => { try { map.removeLayer(l); } catch(e){} });
+  Object.keys(networkLayers).forEach(k => delete networkLayers[k]);
+  const term = searchTerm.toLowerCase();
+  Object.keys(NETWORKS).forEach(key => {
+    if (!visibleNetworks.has(key)) return;
+    const net = NETWORKS[key];
+    const mcg = L.markerClusterGroup({ maxClusterRadius: 50, showCoverageOnHover: false });
+    (net.data || []).forEach(d => {
+      if (!d.lat || !d.lng) return;
+      if (filterCity !== 'all' && d.c !== filterCity) return;
+      if (term && !d.s.toLowerCase().includes(term) && !d.a.toLowerCase().includes(term) && !d.c.toLowerCase().includes(term)) return;
+      const m = L.marker([d.lat, d.lng], { icon: makeIcon(net.color) });
+      m.bindPopup(`<div class="popup-title">${d.s || '—'}</div>
+        <span class="popup-network" style="background:${net.color}">${net.label}</span>
+        <div class="popup-city">${d.c || '—'}</div>
+        <div class="popup-addr">${d.a || '—'}</div>`);
+      mcg.addLayer(m);
+    });
+    networkLayers[key] = mcg;
+    map.addLayer(mcg);
+  });
+  updateStats(filterCity, term);
+  updateCityList(filterCity);
+}
+
+function updateStats(filterCity, term) {
+  let pins = 0, cities = new Set();
+  Object.keys(NETWORKS).forEach(key => {
+    if (!visibleNetworks.has(key)) return;
+    (NETWORKS[key].data || []).forEach(d => {
+      if (!d.lat) return;
+      if (filterCity !== 'all' && d.c !== filterCity) return;
+      if (term && !d.s.toLowerCase().includes(term) && !d.a.toLowerCase().includes(term) && !d.c.toLowerCase().includes(term)) return;
+      pins++; cities.add(d.c);
+    });
+  });
+  document.getElementById('statStores').textContent = pins;
+  document.getElementById('statCities').textContent = cities.size;
+}
+
+function allCities() {
+  const counts = {};
+  Object.keys(NETWORKS).forEach(key => {
+    if (!visibleNetworks.has(key)) return;
+    (NETWORKS[key].data || []).forEach(d => {
+      if (d.lat && d.c) counts[d.c] = (counts[d.c] || 0) + 1;
+    });
+  });
+  return Object.entries(counts).sort((a,b) => b[1]-a[1]);
+}
+
+function populateCityFilter() {
+  const sel = document.getElementById('cityFilter');
+  sel.innerHTML = '<option value="all">All cities</option>';
+  allCities().forEach(([city]) => {
+    const o = document.createElement('option'); o.value = city; o.textContent = city; sel.appendChild(o);
+  });
+}
+
+function updateCityList(filterCity) {
+  const list = document.getElementById('cityList');
+  list.innerHTML = '';
+  allCities().forEach(([city, count]) => {
+    const row = document.createElement('div');
+    row.className = 'city-row' + (city === filterCity ? ' active' : '');
+    row.innerHTML = `<span>${city}</span><span class="count">${count}</span>`;
+    row.addEventListener('click', () => {
+      document.getElementById('cityFilter').value = city;
+      rebuildMap(city, document.getElementById('searchBox').value);
+      map.setView([allCities().find(([c]) => c === city)?.[0] ? 
+        [(NETWORKS.darkstore.data.find(d=>d.c===city)||{lat:20}).lat,
+         (NETWORKS.darkstore.data.find(d=>d.c===city)||{lng:79}).lng] : [20,79]], 12);
+    });
+    list.appendChild(row);
+  });
+}
+
+function buildNetworkPanel() {
+  const nl = document.getElementById('networkList');
+  nl.innerHTML = '';
+  Object.keys(NETWORKS).forEach(key => {
+    const net = NETWORKS[key];
+    const count = (net.data||[]).filter(d=>d.lat).length;
+    const div = document.createElement('div');
+    div.className = 'network-row' + (count === 0 ? ' disabled' : '');
+    const on = visibleNetworks.has(key);
+    div.innerHTML = `<div class="swatch" style="background:${net.color}"></div>
+      <div class="network-info"><div class="network-name">${net.label}</div>
+      <div class="network-count">${count} locations</div></div>
+      <div class="toggle ${on ? 'on' : ''}" data-key="${key}"><div class="toggle-knob"></div></div>`;
+    if (count === 0) {
+      const note = document.createElement('div');
+      note.className = 'empty-note'; note.textContent = 'Awaiting data';
+      div.appendChild(note);
+    }
+    nl.appendChild(div);
+  });
+  nl.querySelectorAll('.toggle').forEach(t => {
+    t.addEventListener('click', () => {
+      const key = t.dataset.key;
+      if (visibleNetworks.has(key)) { visibleNetworks.delete(key); t.classList.remove('on'); }
+      else { visibleNetworks.add(key); t.classList.add('on'); }
+      populateCityFilter();
+      rebuildMap(document.getElementById('cityFilter').value, document.getElementById('searchBox').value);
+    });
+  });
+}
+
+// Hero counters
+function animateCount(el, target, duration=1800) {
+  let start = null;
+  function step(ts) {
+    if (!start) start = ts;
+    const pct = Math.min((ts-start)/duration, 1);
+    const ease = 1-Math.pow(1-pct, 3);
+    el.textContent = Math.round(ease*target);
+    if (pct < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// Build network overview cards
+function buildNetworkCards() {
+  const container = document.getElementById('networkCards');
+  if (!container) return;
+  const configs = [
+    { key: 'darkstore', color: '#C6FF4D', desc: 'Quick-commerce dark stores already operational in your city — powering same-day and sub-2-hour deliveries that create fleet demand for EV riders.' },
+    { key: 'mooving', color: '#43E5C5', desc: 'Mooving battery-swap stations: plug-and-go infrastructure removing range anxiety for EV operators — data layer ready, stations loading soon.' },
+    { key: 'sunmobility', color: '#FFB020', desc: 'Sun Mobility fast-swap kiosks: the energy backbone that makes fleet economics viable — data layer ready, stations loading soon.' }
+  ];
+  configs.forEach(cfg => {
+    const net = NETWORKS[cfg.key];
+    const count = (net.data||[]).filter(d=>d.lat).length;
+    const cities = new Set((net.data||[]).filter(d=>d.lat&&d.c).map(d=>d.c)).size;
+    const card = document.createElement('div');
+    card.className = 'net-card';
+    card.style.setProperty('--card-color', cfg.color);
+    card.innerHTML = `<div class="card-label">${net.label}</div>
+      <div class="card-num">${count || '—'}</div>
+      <div class="card-sub">${count ? cities+' cities covered' : 'Data loading soon'}</div>
+      <div class="card-desc">${cfg.desc}</div>`;
+    container.appendChild(card);
+  });
+}
+
+// Top cities bar chart
+function buildTopCities() {
+  const container = document.getElementById('topCitiesChart');
+  if (!container) return;
+  const counts = {};
+  Object.keys(NETWORKS).forEach(key => {
+    (NETWORKS[key].data||[]).forEach(d => { if (d.lat && d.c) counts[d.c] = (counts[d.c]||0)+1; });
+  });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const max = sorted[0]?.[1] || 1;
+  sorted.forEach(([city, count]) => {
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `<div class="bar-city">${city}</div>
+      <div class="bar-track"><div class="bar-fill" data-pct="${(count/max*100).toFixed(1)}"></div></div>
+      <div class="bar-count">${count}</div>`;
+    container.appendChild(row);
+  });
+  // Animate bars after a short delay
+  setTimeout(() => {
+    document.querySelectorAll('.bar-fill').forEach(b => {
+      b.style.width = b.dataset.pct + '%';
+    });
+  }, 400);
+}
+
+// Init
+populateCityFilter();
+buildNetworkPanel();
+buildNetworkCards();
+buildTopCities();
+rebuildMap();
+
+// Hero stats
+const totalPins = Object.values(NETWORKS).reduce((s,n)=>s+(n.data||[]).filter(d=>d.lat).length,0);
+const totalCities = new Set(Object.values(NETWORKS).flatMap(n=>(n.data||[]).filter(d=>d.lat&&d.c).map(d=>d.c))).size;
+const heroTotal = document.getElementById('heroTotal');
+const heroCities = document.getElementById('heroCities');
+if (heroTotal) animateCount(heroTotal, totalPins);
+if (heroCities) animateCount(heroCities, totalCities);
+
+document.getElementById('cityFilter').addEventListener('change', e => {
+  rebuildMap(e.target.value, document.getElementById('searchBox').value);
+});
+document.getElementById('searchBox').addEventListener('input', e => {
+  rebuildMap(document.getElementById('cityFilter').value, e.target.value);
+});
+</script>
+</body>
+</html>
