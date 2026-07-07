@@ -1,9 +1,11 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "redirects": [
+    { "source": "/network-map.html", "destination": "/network-map", "permanent": true }
+  ],
   "routes": [
     { "src": "/network-map", "dest": "/network-map.html" },
-    { "src": "/map", "dest": "/network-map.html" },
-    { "src": "/(.*)", "dest": "/$1" }
+    { "src": "/map", "dest": "/network-map.html" }
   ]
 }
