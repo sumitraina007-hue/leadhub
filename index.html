@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real Time Lead Management v3.0 (Ai)</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Top Action Header -->
+    <header class="app-header">
+      <div class="header-branding">
+        <div class="logo-box" id="brand-logo-box">
+          <img id="brand-logo-img" src="logo.png" alt="Zypp Logo" style="width:44px; height:44px; object-fit:contain; border-radius:50%;">
+        </div>
+        <div class="header-titles">
+          <h1>ZYPP <span class="accent-green">ELECTRIC</span></h1>
+          <p class="subtitle">Real Time Lead Management &nbsp;<span style="color: var(--zypp-blue); font-weight: 700; font-size: 0.7em; letter-spacing: 0.05em;">v3.0 ( Ai )</span></p>
+        </div>
+      </div>
+      
+      <!-- Connection Hub Panel -->
+      <div class="connection-hub">
+        <div class="hub-title"><i data-lucide="database"></i> Connection Hub</div>
+        <div class="hub-sources">
+          <div class="source-pill" id="pill-delivery" title="Delivery Services Status">
+            <span class="status-dot dot-inactive"></span>
+            <span class="pill-label">Delivery</span>
+          </div>
+          <div class="source-pill" id="pill-fleetease" title="Fleetease.ai Status">
+            <span class="status-dot dot-inactive"></span>
+            <span class="pill-label">Fleetease</span>
+          </div>
+          <div class="source-pill" id="pill-franchise" title="Franchise Status">
+            <span class="status-dot dot-inactive"></span>
+            <span class="pill-label">Franchise</span>
+          </div>
+          <div class="source-pill" id="pill-ads" title="Ads Status">
+            <span class="status-dot dot-inactive"></span>
+            <span class="pill-label">Ads</span>
+          </div>
+          <div class="source-pill" id="pill-riders" title="Riders Status">
+            <span class="status-dot dot-inactive"></span>
+            <span class="pill-label">Riders</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Header Actions -->
+      <div class="header-actions">
+        <!-- Auto Refresh Widget -->
+        <div class="refresh-widget" title="Time until next auto-sync">
+          <div class="countdown-circle">
+            <svg width="32" height="32">
+              <circle class="circle-bg" cx="16" cy="16" r="13"></circle>
+              <circle class="circle-progress" cx="16" cy="16" r="13"></circle>
+            </svg>
+            <span id="countdown-text">5:00</span>
+          </div>
+          <button id="btn-pause-timer" class="btn-icon-sm" title="Pause Auto-Refresh">
+            <i data-lucide="pause"></i>
+          </button>
+        </div>
+        
+        <!-- Refresh & Settings -->
+        <button id="btn-refresh" class="btn btn-primary">
+          <i data-lucide="refresh-cw" class="icon-refresh"></i>
+          <span>Sync Now</span>
+        </button>
+        <button id="btn-settings" class="btn btn-secondary">
+          <i data-lucide="sliders"></i>
+          <span>Configure</span>
+        </button>
+        
+        <!-- Demo Mode Toggle -->
+        <div class="demo-switch-box">
+          <div class="demo-label-wrapper">
+            <span class="demo-main-label">Demo Mode</span>
+            <span class="demo-sub-label">Fallback mock data</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggle-demo" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+      </div>
+    </header>
+    
+    <!-- Connection Diagnostic Error Banner -->
+    <div id="diagnostic-banner" class="banner-diagnostic hidden">
+      <i data-lucide="alert-triangle" class="banner-icon"></i>
+      <div class="banner-text">
+        <span class="banner-title">Sync Warning:</span> Some sources could not be fetched. Check sheet permissions or settings.
+      </div>
+      <button id="btn-dismiss-banner" class="banner-close">&times;</button>
+    </div>
+    
+    <!-- KPI Dashboard Grid -->
+    <section class="kpi-grid">
+      <div class="kpi-card glass-panel" id="kpi-total-leads">
+        <div class="kpi-icon-wrapper blue-glow"><i data-lucide="users"></i></div>
+        <div class="kpi-details">
+          <h3>Total Leads</h3>
+          <p class="kpi-value">0</p>
+          <span class="kpi-trend">All Channels combined</span>
+        </div>
+      </div>
+      
+      <div class="kpi-card glass-panel" id="kpi-today-leads">
+        <div class="kpi-icon-wrapper green-glow"><i data-lucide="user-plus"></i></div>
+        <div class="kpi-details">
+          <h3>Leads Today</h3>
+          <p class="kpi-value">0</p>
+          <span class="kpi-trend trend-neutral" id="today-leads-trend">
+            <i data-lucide="arrow-up-right"></i> <span>0% vs yesterday</span>
+          </span>
+        </div>
+      </div>
+      
+      <div class="kpi-card glass-panel" id="kpi-mtd-leads">
+        <div class="kpi-icon-wrapper purple-glow"><i data-lucide="calendar"></i></div>
+        <div class="kpi-details">
+          <h3>Month To Date</h3>
+          <p class="kpi-value">0</p>
+          <span class="kpi-trend trend-neutral" id="mtd-leads-trend">0 vs last month</span>
+        </div>
+      </div>
+      
+      <div class="kpi-card glass-panel" id="kpi-top-source">
+        <div class="kpi-icon-wrapper yellow-glow"><i data-lucide="award"></i></div>
+        <div class="kpi-details">
+          <h3>Top Source</h3>
+          <p class="kpi-value" id="kpi-top-source-val">-</p>
+          <span class="kpi-trend" id="kpi-top-source-pct">0% of total volume</span>
+        </div>
+      </div>
+
+      <div class="kpi-card glass-panel" id="kpi-top-city">
+        <div class="kpi-icon-wrapper red-glow"><i data-lucide="map-pin"></i></div>
+        <div class="kpi-details">
+          <h3>Top City</h3>
+          <p class="kpi-value" id="kpi-top-city-val">-</p>
+          <span class="kpi-trend" id="kpi-top-city-pct">0 leads</span>
+        </div>
+      </div>
+    </section>
+    
+    <!-- Analytics Section -->
+    <div class="analytics-row">
+      <!-- Chart Analytics Card -->
+      <div class="analytics-card glass-panel flex-2">
+        <div class="card-header">
+          <div class="header-title-with-icon">
+            <i data-lucide="line-chart" class="title-icon color-blue"></i>
+            <h2>Interactive Performance Trends</h2>
+          </div>
+          <div class="header-controls">
+            <select id="chart-metric-selector" class="select-input">
+              <option value="ingestion">Leads Ingestion Rate</option>
+              <option value="city">Distribution by City</option>
+              <option value="poc">Distribution by Lead POC</option>
+            </select>
+            <select id="chart-source-selector" class="select-input">
+              <option value="all">Combined (All Sources)</option>
+              <option value="delivery">Delivery Services</option>
+              <option value="fleetease">Fleetease.ai</option>
+              <option value="franchise">Franchise</option>
+              <option value="ads">Ads</option>
+              <option value="riders">Riders</option>
+            </select>
+            <div class="chart-type-toggle">
+              <button id="chart-type-bar" class="btn-toggle active" title="Bar Chart"><i data-lucide="bar-chart-2"></i></button>
+              <button id="chart-type-line" class="btn-toggle" title="Line Chart"><i data-lucide="trending-up"></i></button>
+            </div>
+          </div>
+        </div>
+        <div class="chart-canvas-container">
+          <canvas id="mainTrendChart"></canvas>
+        </div>
+      </div>
+      
+      <!-- Funnel Progress Card -->
+      <div class="analytics-card glass-panel flex-1">
+        <div class="card-header">
+          <div class="header-title-with-icon">
+            <i data-lucide="filter" class="title-icon color-green"></i>
+            <h2>Conversion Funnel</h2>
+          </div>
+          <span class="funnel-badge" id="funnel-source-label">All Sources</span>
+        </div>
+        <div class="funnel-container">
+          <!-- Stage 1 -->
+          <div class="funnel-stage" data-stage="ingested">
+            <div class="stage-info">
+              <span class="stage-name">1. Ingested</span>
+              <span class="stage-metrics"><strong id="funnel-val-ingested">0</strong> <span class="stage-pct">100%</span></span>
+            </div>
+            <div class="stage-bar-container">
+              <div class="stage-bar" id="bar-ingested" style="width: 100%;"></div>
+            </div>
+          </div>
+          <!-- Stage 2 -->
+          <div class="funnel-stage" data-stage="connected">
+            <div class="stage-info">
+              <span class="stage-name">2. Connected</span>
+              <span class="stage-metrics"><strong id="funnel-val-connected">0</strong> <span class="stage-pct" id="funnel-pct-connected">0%</span></span>
+            </div>
+            <div class="stage-bar-container">
+              <div class="stage-bar" id="bar-connected" style="width: 0%;"></div>
+            </div>
+          </div>
+          <!-- Stage 3 -->
+          <div class="funnel-stage" data-stage="interested">
+            <div class="stage-info">
+              <span class="stage-name">3. Interested</span>
+              <span class="stage-metrics"><strong id="funnel-val-interested">0</strong> <span class="stage-pct" id="funnel-pct-interested">0%</span></span>
+            </div>
+            <div class="stage-bar-container">
+              <div class="stage-bar" id="bar-interested" style="width: 0%;"></div>
+            </div>
+          </div>
+          <!-- Stage 4 -->
+          <div class="funnel-stage" data-stage="converted">
+            <div class="stage-info">
+              <span class="stage-name">4. Converted / Paid</span>
+              <span class="stage-metrics"><strong id="funnel-val-converted">0</strong> <span class="stage-pct" id="funnel-pct-converted">0%</span></span>
+            </div>
+            <div class="stage-bar-container">
+              <div class="stage-bar" id="bar-converted" style="width: 0%;"></div>
+            </div>
+          </div>
+          
+          <div class="funnel-footer">
+            <div class="funnel-stat">
+              <span class="label">Overall Conversion</span>
+              <span class="value" id="funnel-overall-conv">0%</span>
+            </div>
+            <div class="funnel-stat">
+              <span class="label">Lost/Not Interested</span>
+              <span class="value color-danger" id="funnel-lost-count">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Time Period Breakdown Grid -->
+    <section class="performance-grid glass-panel">
+      <div class="card-header">
+        <div class="header-title-with-icon">
+          <i data-lucide="table" class="title-icon color-yellow"></i>
+          <h2>Lead Source Performance Matrix</h2>
+        </div>
+        <span class="header-subtitle">Click cells to filter Lead Database Explorer below</span>
+      </div>
+      <div class="matrix-responsive">
+        <table class="matrix-table" id="matrix-perf-table">
+          <thead>
+            <tr>
+              <th class="col-source">Lead Source</th>
+              <th class="col-val text-center">Today</th>
+              <th class="col-val text-center">Yesterday</th>
+              <th class="col-val text-center">Y - 2</th>
+              <th class="col-val text-center">Y - 3</th>
+              <th class="col-val text-center">Y - 4</th>
+              <th class="col-val text-center">This Month</th>
+              <th class="col-val text-center">Last Month</th>
+              <th class="col-val text-center font-bold">Total Ingested</th>
+              <th class="col-val text-center">Connected Rate</th>
+              <th class="col-val text-center">Conversion Rate</th>
+            </tr>
+          </thead>
+          <tbody id="matrix-perf-body">
+            <!-- Dynamically populated -->
+          </tbody>
+          <tfoot>
+            <tr class="matrix-totals-row" id="matrix-perf-totals">
+              <!-- Dynamically populated Grand Total -->
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+    
+    <!-- Lead Database Explorer -->
+    <section class="explorer-card glass-panel" id="section-database">
+      <div class="card-header">
+        <div class="header-title-with-icon">
+          <i data-lucide="database-backup" class="title-icon color-blue"></i>
+          <h2>Lead Database Explorer</h2>
+        </div>
+        <div class="header-actions-wrapper">
+          <span class="selection-status-badge hidden" id="filter-active-indicator">
+            <span class="indicator-dot"></span>
+            Filter Active 
+            <button id="btn-clear-filters-badge" title="Clear all filters">&times;</button>
+          </span>
+          <button id="btn-export-csv" class="btn btn-secondary">
+            <i data-lucide="download"></i>
+            <span>Export CSV</span>
+          </button>
+          <button id="btn-reset-filters" class="btn btn-secondary text-danger-hover">
+            <i data-lucide="filter-x"></i>
+            <span>Reset Filters</span>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Filters Layout Grid -->
+      <div class="explorer-filters">
+        <div class="filter-group-search">
+          <div class="search-input-wrapper">
+            <i data-lucide="search" class="search-icon"></i>
+            <input type="text" id="search-explorer" placeholder="Search by name, email, mobile, city, POC, status...">
+          </div>
+        </div>
+        <div class="filter-controls-row">
+          <div class="filter-control">
+            <label for="filter-source"><i data-lucide="layers"></i> Source</label>
+            <select id="filter-source" class="select-input">
+              <option value="all">All Sources</option>
+              <option value="delivery">Delivery Services</option>
+              <option value="fleetease">Fleetease.ai</option>
+              <option value="franchise">Franchise</option>
+              <option value="ads">Ads</option>
+              <option value="riders">Riders</option>
+            </select>
+          </div>
+          <div class="filter-control" id="filter-model-wrapper" style="display: none;">
+            <label for="filter-model"><i data-lucide="git-branch"></i> Franchise Model</label>
+            <select id="filter-model" class="select-input">
+              <option value="all">All Models</option>
+              <option value="foco">FOCO</option>
+              <option value="fofo">FOFO</option>
+            </select>
+          </div>
+          <div class="filter-control">
+            <label for="filter-status"><i data-lucide="check-circle"></i> Call Status</label>
+            <select id="filter-status" class="select-input">
+              <option value="all">All Statuses</option>
+              <option value="connected">Connected</option>
+              <option value="not_connected">Not Connected</option>
+              <option value="call_back">Call Back / Followup</option>
+              <option value="not_interested">Not Interested</option>
+              <option value="wrong_no">Wrong No</option>
+              <option value="blank">Blank / Uncalled</option>
+            </select>
+          </div>
+          <div class="filter-control">
+            <label for="filter-interest"><i data-lucide="heart"></i> Lead Interest</label>
+            <select id="filter-interest" class="select-input">
+              <option value="all">All Interests</option>
+              <option value="interested">Interested</option>
+              <option value="not_interested">Not Interested</option>
+              <option value="warm">Warm</option>
+              <option value="cold">Cold</option>
+              <option value="hot">Hot</option>
+              <option value="converted">Converted / Paid</option>
+              <option value="blank">Blank / N/A</option>
+            </select>
+          </div>
+          <div class="filter-control">
+            <label for="filter-city"><i data-lucide="map"></i> City</label>
+            <select id="filter-city" class="select-input">
+              <option value="all">All Cities</option>
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+          <div class="filter-control">
+            <label for="filter-poc"><i data-lucide="user"></i> Lead POC</label>
+            <select id="filter-poc" class="select-input">
+              <option value="all">All POCs</option>
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+          <div class="filter-control date-range-picker">
+            <label><i data-lucide="calendar-days"></i> Ingestion Range</label>
+            <div class="range-inputs">
+              <input type="date" id="filter-date-start" class="date-input" placeholder="Start">
+              <span class="range-separator">to</span>
+              <input type="date" id="filter-date-end" class="date-input" placeholder="End">
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Explorer Table -->
+      <div class="table-responsive">
+        <table class="matrix-table explorer-table" id="explorer-leads-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;" class="text-center">#</th>
+              <th class="sortable" data-sort="name">Lead Name <i data-lucide="chevron-down" class="sort-icon hidden"></i></th>
+              <th class="sortable" data-sort="source">Source <i data-lucide="chevron-down" class="sort-icon hidden"></i></th>
+              <th>Contact Details</th>
+              <th class="sortable" data-sort="date">Ingestion Date <i data-lucide="chevron-down" class="sort-icon hidden"></i></th>
+              <th class="sortable" data-sort="city">City <i data-lucide="chevron-down" class="sort-icon hidden"></i></th>
+              <th class="sortable" data-sort="status">Call Status <i data-lucide="chevron-down" class="sort-icon hidden"></i></th>
+              <th class="sortable" data-sort="interest">Interest <i data-lucide="chevron-down" class="sort-icon hidden"></i></th>
+              <th class="sortable" data-sort="poc">Lead POC <i data-lucide="chevron-down" class="sort-icon hidden"></i></th>
+              <th style="width: 120px;" class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="explorer-leads-body">
+            <!-- Dynamically populated rows -->
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Table Pagination Footer -->
+      <div class="explorer-footer">
+        <div class="pagination-info">
+          Showing <span id="pag-start">0</span> to <span id="pag-end">0</span> of <span id="pag-total">0</span> leads
+        </div>
+        
+        <div class="pagination-controls">
+          <div class="page-size-selector">
+            <label for="select-page-size">Rows per page:</label>
+            <select id="select-page-size" class="select-input select-xs">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          
+          <button id="btn-pag-prev" class="btn btn-secondary btn-sm" disabled><i data-lucide="chevron-left"></i> Prev</button>
+          <span class="page-indicator" id="pag-page-text">Page 1 of 1</span>
+          <button id="btn-pag-next" class="btn btn-secondary btn-sm" disabled>Next <i data-lucide="chevron-right"></i></button>
+        </div>
+      </div>
+    </section>
+    
+  </div> <!-- End App Container -->
+  
+  
+  <!-- ==============================================
+       SIDE DRAWER: LEAD DETAILS PANEL
+       ============================================== -->
+  <div id="lead-drawer" class="drawer-backdrop">
+    <div class="drawer-container">
+      <div class="drawer-header">
+        <div class="drawer-branding">
+          <span class="drawer-badge" id="drawer-source-badge">Franchise</span>
+          <h2 id="drawer-lead-name">Lead Profile</h2>
+        </div>
+        <button id="btn-close-drawer" class="btn-close-drawer" title="Close Drawer">&times;</button>
+      </div>
+      
+      <div class="drawer-body">
+        
+        <!-- Contact CTA Bar -->
+        <div class="drawer-cta-section">
+          <a id="btn-cta-whatsapp" class="cta-btn cta-whatsapp" href="#" target="_blank">
+            <i data-lucide="message-square"></i> WhatsApp Connect
+          </a>
+          <a id="btn-cta-email" class="cta-btn cta-email" href="#" target="_blank">
+            <i data-lucide="mail"></i> Send Email
+          </a>
+          <a id="btn-cta-phone" class="cta-btn cta-phone" href="#">
+            <i data-lucide="phone"></i> Dial Phone
+          </a>
+        </div>
+        
+        <!-- Details Card Section -->
+        <div class="drawer-section">
+          <h3><i data-lucide="id-card"></i> Core Information</h3>
+          <div class="details-grid">
+            <div class="detail-row">
+              <span class="detail-label">Full Name</span>
+              <span class="detail-val" id="det-name">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Email ID</span>
+              <span class="detail-val" id="det-email">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Mobile Number</span>
+              <span class="detail-val font-mono" id="det-mobile">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">City Location</span>
+              <span class="detail-val" id="det-city">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Captured Date</span>
+              <span class="detail-val" id="det-date">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Lead POC / Agent</span>
+              <span class="detail-val" id="det-poc">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Columns / Financials Section -->
+        <div class="drawer-section" id="drawer-section-financials">
+          <h3><i data-lucide="dollar-sign"></i> Lead Financials & Specifications</h3>
+          <div class="details-grid">
+            <div class="detail-row">
+              <span class="detail-label">Budget Range</span>
+              <span class="detail-val font-bold text-green" id="det-budget">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Franchise Model</span>
+              <span class="detail-val" id="det-model">-</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Conversation Logs / Progress Section -->
+        <div class="drawer-section">
+          <h3><i data-lucide="message-circle"></i> Communication & Pipeline</h3>
+          <div class="details-grid">
+            <div class="detail-row">
+              <span class="detail-label">Call Status</span>
+              <span class="detail-val" id="det-call-status">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Call Interest</span>
+              <span class="detail-val" id="det-interest">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Pipeline Lead Status</span>
+              <span class="detail-val" id="det-lead-status">-</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Remarks from Sheet</span>
+              <span class="detail-val detail-val-block" id="det-remarks">-</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Mini CRM Notes Section (LocalStorage Persisted) -->
+        <div class="drawer-section notes-section">
+          <h3><i data-lucide="edit-3"></i> Internal Follow-up Notes</h3>
+          <p class="notes-help">Type follow-up notes below. Saved automatically to your browser.</p>
+          <textarea id="drawer-crm-notes" placeholder="Enter follow-up details, appointment schedules, callback times..."></textarea>
+          <div id="notes-save-indicator" class="save-indicator">
+            <i data-lucide="check-circle-2"></i> Draft saved locally
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ==============================================
+       MODAL DIALOG: SHEET CONFIGURATION & COL MAPPER
+       ============================================== -->
+  <div id="settings-modal" class="modal-backdrop">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3><i data-lucide="settings" class="color-green"></i> System Connection & Configuration</h3>
+        <button id="btn-close-settings" class="modal-close-btn">&times;</button>
+      </div>
+      
+      <!-- Modal Navigation Tabs -->
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-tab="tab-sheet-ids"><i data-lucide="link-2"></i> Sheet IDs & GIDs</button>
+        <button class="modal-tab" data-tab="tab-col-mapper"><i data-lucide="git-merge"></i> Column Mapping</button>
+        <button class="modal-tab" data-tab="tab-conn-status"><i data-lucide="activity"></i> Connection Diagnostics</button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- TAB 1: Sheet IDs & GIDs -->
+        <div id="tab-sheet-ids" class="tab-content active">
+          <p class="form-instructions">
+            Enter the Google Sheet ID and specific gid for each source. Make sure your sheets are shared as <strong>"Anyone with the link can view"</strong> (Viewer status).
+          </p>
+          
+          <div class="settings-form">
+            <div class="form-group-source border-delivery">
+              <div class="group-title"><span class="source-status status-active"></span> 1. Delivery Services</div>
+              <div class="form-row-2">
+                <div class="form-input-col-7">
+                  <label>Google Sheet Spreadsheet ID</label>
+                  <input type="text" id="cfg-sheet-delivery" placeholder="e.g. 1WQTGGj2A6qIWC9UVGqOd_mhksbtCM...">
+                </div>
+                <div class="form-input-col-3">
+                  <label>Tab GID</label>
+                  <input type="text" id="cfg-gid-delivery" placeholder="0">
+                </div>
+              </div>
+              <div class="csv-upload-row" style="display: flex; align-items: center; margin-top: 0.5rem; gap: 0.5rem;">
+                <label class="btn btn-secondary btn-sm" style="margin: 0; padding: 0.35rem 0.75rem; font-size: 0.7rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <i data-lucide="upload-cloud" style="width:12px; height:12px;"></i> Upload CSV Fallback
+                  <input type="file" class="csv-file-input" data-source="delivery" accept=".csv" style="display: none;">
+                </label>
+                <span class="csv-upload-status" id="csv-status-delivery" style="font-size: 0.68rem; color: var(--text-muted);"></span>
+              </div>
+            </div>
+
+            <div class="form-group-source border-fleetease">
+              <div class="group-title"><span class="source-status status-active"></span> 2. Fleetease.ai</div>
+              <div class="form-row-2">
+                <div class="form-input-col-7">
+                  <label>Google Sheet Spreadsheet ID</label>
+                  <input type="text" id="cfg-sheet-fleetease" placeholder="e.g. 1YjLKRIGX1nQx7SCuMavwq4aZNqxRv...">
+                </div>
+                <div class="form-input-col-3">
+                  <label>Tab GID</label>
+                  <input type="text" id="cfg-gid-fleetease" placeholder="1308323268">
+                </div>
+              </div>
+              <div class="csv-upload-row" style="display: flex; align-items: center; margin-top: 0.5rem; gap: 0.5rem;">
+                <label class="btn btn-secondary btn-sm" style="margin: 0; padding: 0.35rem 0.75rem; font-size: 0.7rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <i data-lucide="upload-cloud" style="width:12px; height:12px;"></i> Upload CSV Fallback
+                  <input type="file" class="csv-file-input" data-source="fleetease" accept=".csv" style="display: none;">
+                </label>
+                <span class="csv-upload-status" id="csv-status-fleetease" style="font-size: 0.68rem; color: var(--text-muted);"></span>
+              </div>
+            </div>
+
+            <div class="form-group-source border-franchise">
+              <div class="group-title"><span class="source-status status-active"></span> 3. Franchise (Foco)</div>
+              <div class="form-row-2">
+                <div class="form-input-col-7">
+                  <label>Google Sheet Spreadsheet ID</label>
+                  <input type="text" id="cfg-sheet-franchise" placeholder="Default FOCO ID loaded">
+                </div>
+                <div class="form-input-col-3">
+                  <label>Tab GID</label>
+                  <input type="text" id="cfg-gid-franchise" placeholder="0">
+                </div>
+              </div>
+              <div class="csv-upload-row" style="display: flex; align-items: center; margin-top: 0.5rem; gap: 0.5rem;">
+                <label class="btn btn-secondary btn-sm" style="margin: 0; padding: 0.35rem 0.75rem; font-size: 0.7rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <i data-lucide="upload-cloud" style="width:12px; height:12px;"></i> Upload CSV Fallback
+                  <input type="file" class="csv-file-input" data-source="franchise" accept=".csv" style="display: none;">
+                </label>
+                <span class="csv-upload-status" id="csv-status-franchise" style="font-size: 0.68rem; color: var(--text-muted);"></span>
+              </div>
+            </div>
+
+            <div class="form-group-source border-ads">
+              <div class="group-title"><span class="source-status status-active"></span> 4. Ads (Advertisment)</div>
+              <div class="form-row-2">
+                <div class="form-input-col-7">
+                  <label>Google Sheet Spreadsheet ID</label>
+                  <input type="text" id="cfg-sheet-ads" placeholder="Default Ads ID loaded">
+                </div>
+                <div class="form-input-col-3">
+                  <label>Tab GID</label>
+                  <input type="text" id="cfg-gid-ads" placeholder="2044633763">
+                </div>
+              </div>
+              <div class="csv-upload-row" style="display: flex; align-items: center; margin-top: 0.5rem; gap: 0.5rem;">
+                <label class="btn btn-secondary btn-sm" style="margin: 0; padding: 0.35rem 0.75rem; font-size: 0.7rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <i data-lucide="upload-cloud" style="width:12px; height:12px;"></i> Upload CSV Fallback
+                  <input type="file" class="csv-file-input" data-source="ads" accept=".csv" style="display: none;">
+                </label>
+                <span class="csv-upload-status" id="csv-status-ads" style="font-size: 0.68rem; color: var(--text-muted);"></span>
+              </div>
+            </div>
+
+            <div class="form-group-source border-riders">
+              <div class="group-title"><span class="source-status status-active"></span> 5. Riders</div>
+              <div class="form-row-2">
+                <div class="form-input-col-7">
+                  <label>Google Sheet Spreadsheet ID</label>
+                  <input type="text" id="cfg-sheet-riders" placeholder="e.g. Spreadsheet ID">
+                </div>
+                <div class="form-input-col-3">
+                  <label>Tab GID</label>
+                  <input type="text" id="cfg-gid-riders" placeholder="0">
+                </div>
+              </div>
+              <div class="csv-upload-row" style="display: flex; align-items: center; margin-top: 0.5rem; gap: 0.5rem;">
+                <label class="btn btn-secondary btn-sm" style="margin: 0; padding: 0.35rem 0.75rem; font-size: 0.7rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <i data-lucide="upload-cloud" style="width:12px; height:12px;"></i> Upload CSV Fallback
+                  <input type="file" class="csv-file-input" data-source="riders" accept=".csv" style="display: none;">
+                </label>
+                <span class="csv-upload-status" id="csv-status-riders" style="font-size: 0.68rem; color: var(--text-muted);"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- TAB 2: Column Mapping -->
+        <div id="tab-col-mapper" class="tab-content">
+          <p class="form-instructions">
+            Select a Lead Source, and bind fields to specific columns. By default, the system auto-detects columns using standard headers, but you can override them here.
+          </p>
+          
+          <div class="mapper-source-select-row">
+            <label for="cfg-mapper-source-selector">Configure mappings for:</label>
+            <select id="cfg-mapper-source-selector" class="select-input select-md">
+              <option value="delivery">Delivery Services</option>
+              <option value="fleetease">Fleetease.ai</option>
+              <option value="franchise">Franchise (Foco)</option>
+              <option value="ads">Ads (Advertisment)</option>
+              <option value="riders">Riders</option>
+            </select>
+          </div>
+          
+          <!-- Visual mapping layout -->
+          <div class="mapper-wrapper">
+            <div class="mapper-header">
+              <div class="mapper-col-head">Dashboard Unified Field</div>
+              <div class="mapper-col-head">Sheet Column Bind (Label / Index)</div>
+            </div>
+            
+            <div class="mapper-rows-container" id="col-mapper-fields-rows">
+              <!-- Dynamically populated rows with label dropdowns based on loaded sheet schemas -->
+              <!-- Fallback to column index numeric selectors if sheets are not loaded -->
+            </div>
+          </div>
+        </div>
+        
+        <!-- TAB 3: Connection Diagnostics -->
+        <div id="tab-conn-status" class="tab-content">
+          <p class="form-instructions">
+            Test and view live connectivity for all configured Google Sheet integrations.
+          </p>
+          
+          <div class="diagnostic-list" id="diagnostic-conn-list">
+            <!-- Dynamically populated diagnostic widgets -->
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button id="btn-reset-defaults" class="btn btn-secondary text-danger">Reset Defaults</button>
+        <div style="flex: 1;"></div>
+        <button id="btn-close-settings-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="btn-save-settings" class="btn btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="app.js"></script>
+</body>
+</html>
