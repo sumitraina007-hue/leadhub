@@ -139,13 +139,9 @@ body {
 .logo-box {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #0b132b 0%, #1c2541 100%);
-  border: 2px solid var(--zypp-green);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 16px var(--zypp-green-glow);
 }
 
 .logo-bolt {
