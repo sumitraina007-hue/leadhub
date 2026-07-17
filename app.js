@@ -8,7 +8,7 @@ const CONFIG = {
   SOURCES: [
     { key: 'delivery', name: 'Delivery Services', fallbackColor: '#00d2ff', defaultId: '', defaultGid: '0' },
     { key: 'fleetease', name: 'Fleetease.ai', fallbackColor: '#a855f7', defaultId: '1YjLKRIGX1nQx7SCuMavwq4aZNqxRvdiOk4EeYgmECRc', defaultGid: '1308323268' },
-    { key: 'franchise', name: 'Franchise (Foco)', fallbackColor: '#76ff03', defaultId: '1WQTGGj2A6qIWC9UVGqOd_mhksbtCM_oD_WSZwpy9_9k', defaultGid: '0' },
+    { key: 'franchise', name: 'Franchise (FOCO & FOFO)', fallbackColor: '#76ff03', defaultId: '1WQTGGj2A6qIWC9UVGqOd_mhksbtCM_oD_WSZwpy9_9k', defaultGid: '0' },
     { key: 'ads', name: 'Ads (Advertisment)', fallbackColor: '#f59e0b', defaultId: '1cvFVTlWSce5whci4Au3MeqRRFVRb8baIiev6WZ7tE0o', defaultGid: '2044633763' },
     { key: 'riders', name: 'Riders', fallbackColor: '#ef4444', defaultId: '', defaultGid: '0' }
   ],
@@ -117,12 +117,12 @@ function initUI() {
 
 // --- Load config from LocalStorage ---
 function loadConfig() {
-  const savedIds = localStorage.getItem('zypp_sheet_ids_v2');
-  const savedGids = localStorage.getItem('zypp_sheet_gids_v2');
-  const savedDemo = localStorage.getItem('zypp_demo_mode_v2');
-  const savedMappings = localStorage.getItem('zypp_col_mappings_v2');
-  // v3: bumped to invalidate old caches missing model field
-  const cachedLeads = localStorage.getItem('zypp_leads_cache_v3');
+  const savedIds = localStorage.getItem('zypp_sheet_ids_v4');
+  const savedGids = localStorage.getItem('zypp_sheet_gids_v4');
+  const savedDemo = localStorage.getItem('zypp_demo_mode_v4');
+  const savedMappings = localStorage.getItem('zypp_col_mappings_v4');
+  // v4: bumped to invalidate old caches missing new FOFO leads structure
+  const cachedLeads = localStorage.getItem('zypp_leads_cache_v4');
   
   // Load Sheet IDs
   if (savedIds) {
@@ -204,10 +204,10 @@ function loadConfig() {
 
 // --- Save config in LocalStorage ---
 function saveConfig() {
-  localStorage.setItem('zypp_sheet_ids_v2', JSON.stringify(state.sheetIds));
-  localStorage.setItem('zypp_sheet_gids_v2', JSON.stringify(state.sheetGids));
-  localStorage.setItem('zypp_demo_mode_v2', state.demoMode);
-  localStorage.setItem('zypp_col_mappings_v2', JSON.stringify(state.colMappings));
+  localStorage.setItem('zypp_sheet_ids_v4', JSON.stringify(state.sheetIds));
+  localStorage.setItem('zypp_sheet_gids_v4', JSON.stringify(state.sheetGids));
+  localStorage.setItem('zypp_demo_mode_v4', state.demoMode);
+  localStorage.setItem('zypp_col_mappings_v4', JSON.stringify(state.colMappings));
 }
 
 // --- Save Leads to Cache ---
@@ -216,7 +216,7 @@ function cacheLeads() {
     leads: state.allLeads,
     timestamp: new Date().toISOString()
   };
-  localStorage.setItem('zypp_leads_cache_v3', JSON.stringify(dataToCache));
+  localStorage.setItem('zypp_leads_cache_v4', JSON.stringify(dataToCache));
 }
 
 // --- Reset Configuration Defaults ---
@@ -306,6 +306,7 @@ async function fetchAndRenderAll() {
   updateConnectionStatusPills();
   updateDiagnosticBanner();
   renderAllMetrics();
+  loadPivotTable6();
   
   if (btnRefresh) {
     btnRefresh.classList.remove('loading');
@@ -442,7 +443,7 @@ function parseGvizTable(data, sourceKey) {
   const DEFAULT_SOURCE_MAPPINGS = {
     franchise: {
       name: 0, email: 1, mobile: 2, budget: 3, model: 4, city: 5, date: 6,
-      poc: 8, callStatus: 12, callInterest: 14, leadStatus: 15, remarks: 19
+      poc: 8, callStatus: 12, callInterest: 14, leadStatus: 18, remarks: 19
     },
     ads: {
       date: 1, name: 2, email: 3, mobile: 4, city: 5, poc: 12,
@@ -780,37 +781,7 @@ function renderAllMetrics() {
     }
   }
   
-  // Top Source Calculation
-  let topSourceName = 'None';
-  let topSourceVal = 0;
-  CONFIG.SOURCES.forEach(s => {
-    const count = state.allLeads[s.key].length;
-    if (count > topSourceVal) {
-      topSourceVal = count;
-      topSourceName = s.name;
-    }
-  });
-  const topSourcePct = combinedStats.total > 0 ? Math.round((topSourceVal / combinedStats.total) * 100) : 0;
-  document.getElementById('kpi-top-source-val').innerText = topSourceName;
-  document.getElementById('kpi-top-source-pct').innerText = `${topSourcePct}% of total volume (${topSourceVal} leads)`;
-  
-  // Top City Calculation
-  const cityCounts = {};
-  combinedLeads.forEach(l => {
-    if (l.city && l.city !== 'Unknown') {
-      cityCounts[l.city] = (cityCounts[l.city] || 0) + 1;
-    }
-  });
-  let topCityName = 'N/A';
-  let topCityVal = 0;
-  Object.keys(cityCounts).forEach(c => {
-    if (cityCounts[c] > topCityVal) {
-      topCityVal = cityCounts[c];
-      topCityName = c;
-    }
-  });
-  document.getElementById('kpi-top-city-val').innerText = topCityName;
-  document.getElementById('kpi-top-city-pct').innerText = `${topCityVal} leads from this location`;
+
 
   // Restore lucide icons in KPI trends
   if (window.lucide) lucide.createIcons();
@@ -1169,7 +1140,13 @@ function renderExplorerTable() {
     
     // Source color pill border
     const srcObj = CONFIG.SOURCES.find(s => s.key === lead.source);
-    const sourceBadge = `<span class="source-pill" style="border-color: ${srcObj.fallbackColor}; color: ${srcObj.fallbackColor};">${srcObj ? srcObj.name : lead.source}</span>`;
+    let badgeName = srcObj ? srcObj.name : lead.source;
+    if (lead.source === 'franchise' && lead.model) {
+      const ml = (lead.model || '').toLowerCase();
+      if (ml.includes('foco')) badgeName = 'Franchise (FOCO)';
+      else if (ml.includes('fofo')) badgeName = 'Franchise (FOFO)';
+    }
+    const sourceBadge = `<span class="source-pill" style="border-color: ${srcObj ? srcObj.fallbackColor : '#ffffff'}; color: ${srcObj ? srcObj.fallbackColor : '#ffffff'};">${badgeName}</span>`;
     
     tr.innerHTML = `
       <td class="text-center text-muted font-mono">${startIdx + index + 1}</td>
@@ -1989,7 +1966,12 @@ function exportExplorerLeadsToCSV() {
   
   const rows = leads.map(l => {
     const srcObj = CONFIG.SOURCES.find(s => s.key === l.source);
-    const srcName = srcObj ? srcObj.name : l.source;
+    let srcName = srcObj ? srcObj.name : l.source;
+    if (l.source === 'franchise' && l.model) {
+      const ml = (l.model || '').toLowerCase();
+      if (ml.includes('foco')) srcName = 'Franchise (FOCO)';
+      else if (ml.includes('fofo')) srcName = 'Franchise (FOFO)';
+    }
     
     const escapeCsv = (val) => {
       if (!val) return '""';
@@ -2394,58 +2376,6 @@ function setupInteractiveKPIsAndPills() {
       scrollToDatabaseExplorer();
     });
   }
-
-  // KPI Card - Top Source
-  const cardSource = document.getElementById('kpi-top-source');
-  if (cardSource) {
-    cardSource.addEventListener('click', () => {
-      let topKey = 'all';
-      let topCount = 0;
-      CONFIG.SOURCES.forEach(s => {
-        const count = state.allLeads[s.key].length;
-        if (count > topCount) {
-          topCount = count;
-          topKey = s.key;
-        }
-      });
-      clearAllExplorerFilters();
-      if (topKey !== 'all') {
-        state.filters.source = topKey;
-        document.getElementById('filter-source').value = topKey;
-      }
-      renderExplorerTable();
-      scrollToDatabaseExplorer();
-    });
-  }
-
-  // KPI Card - Top City
-  const cardCity = document.getElementById('kpi-top-city');
-  if (cardCity) {
-    cardCity.addEventListener('click', () => {
-      const combined = getCombinedLeads();
-      const cityCounts = {};
-      combined.forEach(l => {
-        if (l.city && l.city !== 'Unknown') {
-          cityCounts[l.city] = (cityCounts[l.city] || 0) + 1;
-        }
-      });
-      let topCity = 'all';
-      let topCount = 0;
-      Object.keys(cityCounts).forEach(c => {
-        if (cityCounts[c] > topCount) {
-          topCount = cityCounts[c];
-          topCity = c;
-        }
-      });
-      clearAllExplorerFilters();
-      if (topCity !== 'all') {
-        state.filters.city = topCity;
-        document.getElementById('filter-city').value = topCity;
-      }
-      renderExplorerTable();
-      scrollToDatabaseExplorer();
-    });
-  }
 }
 
 // Helper: Scroll directly down to Database grid with brief glow flash
@@ -2678,4 +2608,74 @@ function handleCSVUpload(e) {
     }
   };
   reader.readAsText(file);
+}
+
+// --- Pivot Table 6 Logic ---
+function loadPivotTable6() {
+  const sheetId = state.sheetIds['franchise'] || '1WQTGGj2A6qIWC9UVGqOd_mhksbtCM_oD_WSZwpy9_9k';
+  const gid = '391923483';
+  
+  const container = document.getElementById('pivot-table-container');
+  if (!container) return;
+  
+  container.innerHTML = `<div style="text-align:center; padding: 2rem; color:var(--text-muted);"><i class="spin" data-lucide="loader" style="width:24px;height:24px;margin-bottom:8px;display:block;margin-inline:auto;"></i> Loading Pivot Table...</div>`;
+  if (window.lucide) lucide.createIcons();
+  
+  const callbackName = 'gviz_pivot_' + Math.random().toString(36).substring(2, 15);
+  
+  window[callbackName] = function(json) {
+    if (!json || !json.table || !json.table.cols || !json.table.rows) {
+      container.innerHTML = `<div class="text-center text-muted" style="padding: 2rem;">Error parsing pivot table.</div>`;
+      return;
+    }
+    
+    // Build HTML Table
+    let html = `<table class="matrix-table" style="width: 100%;">`;
+    
+    // Headers
+    html += `<thead><tr>`;
+    json.table.cols.forEach((col, idx) => {
+      let label = col.label || '';
+      if (idx === 0) label = 'Franchise Model';
+      else if (label.startsWith('Call Intrest ')) label = label.replace('Call Intrest ', '');
+      html += `<th>${label}</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+    
+    // Rows
+    json.table.rows.forEach(row => {
+      html += `<tr>`;
+      row.c.forEach((cell, idx) => {
+        let val = cell ? (cell.f || cell.v) : '';
+        if (val === null || val === undefined) val = '';
+        if (idx === 0) {
+          html += `<td style="font-weight: 600;">${val}</td>`;
+        } else {
+          html += `<td class="text-center font-mono">${val}</td>`;
+        }
+      });
+      html += `</tr>`;
+    });
+    
+    html += `</tbody></table>`;
+    
+    container.innerHTML = html;
+    
+    delete window[callbackName];
+    const script = document.getElementById(callbackName);
+    if (script) script.remove();
+  };
+  
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json;responseHandler:${callbackName}&gid=${gid}`;
+  
+  const script = document.createElement('script');
+  script.id = callbackName;
+  script.src = url;
+  
+  script.onerror = function() {
+    container.innerHTML = `<div class="text-center text-muted" style="padding: 2rem;">Failed to load Pivot Table. Please check sheet access.</div>`;
+    delete window[callbackName];
+  };
+  
+  document.body.appendChild(script);
 }

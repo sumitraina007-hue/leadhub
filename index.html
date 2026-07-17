@@ -140,22 +140,24 @@
           <span class="kpi-trend trend-neutral" id="mtd-leads-trend">0 vs last month</span>
         </div>
       </div>
-      
-      <div class="kpi-card glass-panel" id="kpi-top-source">
-        <div class="kpi-icon-wrapper yellow-glow"><i data-lucide="award"></i></div>
-        <div class="kpi-details">
-          <h3>Top Source</h3>
-          <p class="kpi-value" id="kpi-top-source-val">-</p>
-          <span class="kpi-trend" id="kpi-top-source-pct">0% of total volume</span>
+    </section>
+    
+    <!-- Pivot Table 6 Section -->
+    <section class="pivot-section" style="margin-bottom: 1.5rem;">
+      <div class="analytics-card glass-panel" style="overflow-x: auto;">
+        <div class="card-header" style="margin-bottom: 1rem; border-bottom: 1px solid var(--border-light); padding-bottom: 1rem;">
+          <div class="header-title-with-icon">
+            <i data-lucide="table" class="title-icon color-blue"></i>
+            <h2>Pivot Table 6 (Call Interest by Model)</h2>
+          </div>
+          <button id="btn-refresh-pivot" class="btn btn-secondary btn-sm" onclick="loadPivotTable6()" title="Refresh Pivot Table">
+            <i data-lucide="refresh-cw" style="width:14px; height:14px;"></i>
+          </button>
         </div>
-      </div>
-
-      <div class="kpi-card glass-panel" id="kpi-top-city">
-        <div class="kpi-icon-wrapper red-glow"><i data-lucide="map-pin"></i></div>
-        <div class="kpi-details">
-          <h3>Top City</h3>
-          <p class="kpi-value" id="kpi-top-city-val">-</p>
-          <span class="kpi-trend" id="kpi-top-city-pct">0 leads</span>
+        <div id="pivot-table-container">
+          <div style="text-align:center; padding: 2rem; color:var(--text-muted);">
+            <i class="spin" data-lucide="loader" style="width:24px;height:24px;margin-bottom:8px;display:block;margin-inline:auto;"></i> Loading Pivot Table...
+          </div>
         </div>
       </div>
     </section>
@@ -629,11 +631,11 @@
             </div>
 
             <div class="form-group-source border-franchise">
-              <div class="group-title"><span class="source-status status-active"></span> 3. Franchise (Foco)</div>
+              <div class="group-title"><span class="source-status status-active"></span> 3. Franchise (FOCO & FOFO)</div>
               <div class="form-row-2">
                 <div class="form-input-col-7">
                   <label>Google Sheet Spreadsheet ID</label>
-                  <input type="text" id="cfg-sheet-franchise" placeholder="Default FOCO ID loaded">
+                  <input type="text" id="cfg-sheet-franchise" placeholder="Default FOCO/FOFO ID loaded">
                 </div>
                 <div class="form-input-col-3">
                   <label>Tab GID</label>
@@ -704,7 +706,7 @@
             <select id="cfg-mapper-source-selector" class="select-input select-md">
               <option value="delivery">Delivery Services</option>
               <option value="fleetease">Fleetease.ai</option>
-              <option value="franchise">Franchise (Foco)</option>
+              <option value="franchise">Franchise (FOCO & FOFO)</option>
               <option value="ads">Ads (Advertisment)</option>
               <option value="riders">Riders</option>
             </select>
